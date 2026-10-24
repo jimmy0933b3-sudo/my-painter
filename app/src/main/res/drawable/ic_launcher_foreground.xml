@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+
+    <!-- Children's sketchbook, slightly tilted, held safely inside the adaptive icon zone -->
+    <group android:rotation="-8" android:pivotX="52" android:pivotY="53">
+        <path android:fillColor="#DAA74C"
+            android:pathData="M27,21 Q27,16 32,16 L74,16 Q79,16 79,21 L79,83 Q79,88 74,88 L32,88 Q27,88 27,83 Z"/>
+        <path android:fillColor="#FFFFFF"
+            android:pathData="M24,18 Q24,14 29,14 L72,14 Q77,14 77,19 L77,81 Q77,86 72,86 L29,86 Q24,86 24,81 Z"/>
+        <path android:strokeColor="#F8DCC0" android:strokeWidth="1.4" android:fillColor="@android:color/transparent"
+            android:pathData="M34,26 L71,26"/>
+        <path android:fillColor="#EA8E43"
+            android:pathData="M31,11 a2.3,2.3 0,1 0,0.01 0 M41,11 a2.3,2.3 0,1 0,0.01 0 M51,11 a2.3,2.3 0,1 0,0.01 0 M61,11 a2.3,2.3 0,1 0,0.01 0 M71,11 a2.3,2.3 0,1 0,0.01 0"/>
+        <path android:fillColor="#FE6863"
+            android:pathData="M51,41 C39,32 29,40 32,54 C34,66 44,72 50,69 Q54,66 59,70 C69,71 77,54 71,43 C66,36 57,37 51,41 Z"/>
+        <path android:fillColor="#FF9890"
+            android:pathData="M40,44 Q34,50 39,59 Q40,60 41,56 Q39,51 45,46 Z"/>
+        <path android:strokeColor="#BE6531" android:strokeWidth="3"
+            android:strokeLineCap="round" android:fillColor="@android:color/transparent"
+            android:pathData="M51,41 Q49,31 55,28"/>
+        <path android:fillColor="#75C957"
+            android:pathData="M53,34 Q60,23 70,29 Q62,40 53,34 Z"/>
+        <path android:strokeColor="#399B65" android:strokeWidth="1.2" android:fillColor="@android:color/transparent"
+            android:pathData="M54,34 L66,29"/>
+    </group>
+
+    <!-- Giant crayon marks the artwork: bright blue shaft, red tip -->
+    <group android:rotation="37" android:pivotX="78" android:pivotY="68">
+        <path android:fillColor="#246BD6" android:pathData="M70,49 Q70,45 74,45 L85,45 Q89,45 89,49 L89,83 L70,83 Z"/>
+        <path android:fillColor="#69B6FF" android:pathData="M73,48 L78,48 L78,81 L73,81 Z"/>
+        <path android:fillColor="#FFF3D6" android:pathData="M70,83 L89,83 L79.5,97 Z"/>
+        <path android:fillColor="#F46852" android:pathData="M76.6,91.5 L82.4,91.5 L79.5,97 Z"/>
+        <path android:fillColor="#F9E18B" android:pathData="M70,52 L89,52 L89,56 L70,56 Z"/>
+    </group>
+
+    <!-- Six joyful paint wells -->
+    <path android:fillColor="#FFFFFF" android:pathData="M20,84 Q20,78 26,78 L80,78 Q87,78 87,85 Q87,92 79,92 L27,92 Q20,92 20,84 Z"/>
+    <path android:fillColor="#EF4C57" android:pathData="M31,85 m-5,0 a5,5 0,1 0,10 0 a5,5 0,1 0,-10 0"/>
+    <path android:fillColor="#FFA637" android:pathData="M43,85 m-5,0 a5,5 0,1 0,10 0 a5,5 0,1 0,-10 0"/>
+    <path android:fillColor="#F9CF35" android:pathData="M55,85 m-5,0 a5,5 0,1 0,10 0 a5,5 0,1 0,-10 0"/>
+    <path android:fillColor="#70C65D" android:pathData="M67,85 m-5,0 a5,5 0,1 0,10 0 a5,5 0,1 0,-10 0"/>
+    <path android:fillColor="#7965D9" android:pathData="M79,85 m-5,0 a5,5 0,1 0,10 0 a5,5 0,1 0,-10 0"/>
+</vector>
