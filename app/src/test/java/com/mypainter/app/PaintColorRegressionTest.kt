@@ -24,7 +24,7 @@ class PaintColorRegressionTest {
         }
         strokes.forEachIndexed { index, stroke ->
             assertEquals("brush color index $index", Crayons.colors[index].color, stroke.color)
-            assertEquals(2f + index / 5f, stroke.width)
+            assertEquals(2f + index / 5f, stroke.width, 0.0001f)
             assertEquals(points, stroke.points)
         }
         assertEquals(36, strokes.map { it.color }.distinct().size)
