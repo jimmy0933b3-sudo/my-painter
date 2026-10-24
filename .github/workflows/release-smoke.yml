@@ -4,27 +4,73 @@ on:
     paths:
       - .github/workflows/release-smoke.yml
   workflow_dispatch:
+  workflow_run:
+    workflows: ["Build and Publish APK"]
+    types: [completed]
 
 permissions:
   contents: read
+  actions: read
 
 jobs:
   verify:
+    if: github.event_name != 'workflow_run' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main')
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
-      - name: Verify published installable package
+      - name: Verify fixed-key Release APK and signer SHA-256
+        shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          for attempt in $(seq 1 12); do
-            if gh api "repos/$GITHUB_REPOSITORY/releases/tags/latest" --jq '.assets[] | select(.name == "my-painter-latest.apk") | .name' 2>/dev/null | grep -qx 'my-painter-latest.apk'; then break; fi
-            echo "Waiting for initial main build..."
+          # A main build may still be running when a verification PR is opened.
+          for attempt in $(seq 1 24); do
+            summary="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/android.yml/runs?branch=main&per_page=1" \
+              --jq '.workflow_runs[0] | [.id, .status, (.conclusion // "-")] | @tsv')"
+            read -r main_run status conclusion <<< "$summary"
+            if [[ "$status" == "completed" ]]; then break; fi
+            echo "Latest main Android run $main_run: $status (checking again)"
             sleep 10
           done
-          gh api "repos/$GITHUB_REPOSITORY/releases/tags/latest" --jq '.assets[] | [.name, .size] | @tsv'
-          gh api "repos/$GITHUB_REPOSITORY/releases/tags/latest" --jq '.assets[] | select(.name == "my-painter-latest.apk") | .name' | grep -qx 'my-painter-latest.apk'
-          gh release download latest -R "$GITHUB_REPOSITORY" --pattern 'my-painter-latest.apk' --dir ./smoke-apk
-          test -s ./smoke-apk/my-painter-latest.apk
-          unzip -t ./smoke-apk/my-painter-latest.apk | tail -n 2
-          sha256sum ./smoke-apk/my-painter-latest.apk
+          echo "Latest main Android build: run=$main_run status=$status result=$conclusion"
+          if [[ "$status" != "completed" || "$conclusion" != "success" ]]; then
+            echo "::error::Latest main build did not complete successfully. Fixed signing Secrets may be absent or invalid."
+            exit 1
+          fi
+
+          body="$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/latest" --jq '.body')"
+          expected="$(printf '%s\n' "$body" | sed -n 's/^Signer SHA256: //p' | head -n 1)"
+          if [[ -z "$expected" ]]; then
+            echo "::error::Latest Release has no fixed signing fingerprint (may still be DEV)."
+            exit 1
+          fi
+          asset_count="$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/latest" \
+            --jq '[.assets[] | select(.name == "my-painter-latest.apk")] | length')"
+          [[ "$asset_count" == 1 ]] || { echo "::error::Expected exactly one latest APK"; exit 1; }
+
+          gh release download latest -R "$GITHUB_REPOSITORY" \
+            --pattern "my-painter-latest.apk" --dir ./smoke-apk
+          APK="./smoke-apk/my-painter-latest.apk"
+          test -s "$APK"
+          unzip -t "$APK" | tail -n 2
+          SDK_ROOT="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
+          sdkmanager="$(find "$SDK_ROOT/cmdline-tools" -type f -name sdkmanager | head -n 1)"
+          test -x "$sdkmanager"
+          "$sdkmanager" "build-tools;35.0.0" >/dev/null
+          APKSIGNER="$SDK_ROOT/build-tools/35.0.0/apksigner"
+          "$APKSIGNER" verify --verbose "$APK"
+          actual="$("$APKSIGNER" verify --print-certs "$APK" |
+            sed -n 's/^Signer #1 certificate SHA-256 digest: //p' | head -n 1)"
+          [[ -n "$actual" && "$actual" == "$expected" ]] || {
+            echo "::error::Published APK certificate differs from the Release's expected fixed key."
+            exit 1
+          }
+          "$SDK_ROOT/build-tools/35.0.0/aapt" dump badging "$APK" |
+            grep -q "package: name='com.mypainter.app'"
+          echo "APK package: com.mypainter.app"
+          echo "Fixed signing certificate SHA-256: $actual"
+          sha256sum "$APK"
+          echo "### Release smoke test: PASSED" >> "$GITHUB_STEP_SUMMARY"
+          echo "- APK package: \`com.mypainter.app\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Signer SHA256: \`$actual\`" >> "$GITHUB_STEP_SUMMARY"
