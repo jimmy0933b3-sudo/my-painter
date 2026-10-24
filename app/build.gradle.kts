@@ -10,8 +10,8 @@ android {
         applicationId = "com.mypainter.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0.0"
+        versionCode = providers.gradleProperty("buildVersionCode").orNull?.toIntOrNull() ?: 1
+        versionName = "1.0." + versionCode
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     signingConfigs {
