@@ -5,6 +5,8 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -107,48 +109,84 @@ private fun HomeScreen(
     val completed = remember(progressTick) {
         ShopCatalog.items.count { store.read(it.id).stage >= it.paths.size }
     }
-    Column(Modifier.fillMaxSize()) {
-        PageHeading("🎨", "小小畫家", "動動手指，一起玩畫畫！")
-        LazyColumn(contentPadding = PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp)) {
-            item {
-                Card(colors = CardDefaults.cardColors(containerColor = peach),
-                    shape = RoundedCornerShape(25.dp)) {
-                    Column(Modifier.fillMaxWidth().padding(20.dp)) {
-                        Text("🛒 歡迎來到超市樂園！", fontSize = 22.sp,
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+        val compactLandscape = maxWidth < 760.dp
+        Row(
+            modifier = Modifier.fillMaxSize().padding(10.dp),
+            horizontalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            // Overview and navigation live on the left in landscape.
+            Column(
+                Modifier.fillMaxWidth(if (compactLandscape) 0.36f else 0.29f)
+                    .fillMaxHeight()
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Text("🎨 小小畫家", fontWeight = FontWeight.ExtraBold,
+                    fontSize = if (compactLandscape) 21.sp else 27.sp,
+                    color = navy)
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = peach),
+                    shape = RoundedCornerShape(19.dp)
+                ) {
+                    Column(Modifier.fillMaxWidth().padding(14.dp)) {
+                        Text("🛒 超市樂園", fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                        Spacer(Modifier.height(4.dp))
+                        Text("36 樣商品等你來畫！", fontSize = 14.sp)
+                        Spacer(Modifier.height(7.dp))
+                        Text("⭐ 完成 $completed / 36", fontSize = 15.sp,
                             fontWeight = FontWeight.Bold)
-                        Spacer(Modifier.height(6.dp))
-                        Text("36 樣商品等你來畫！\n跟著線條描一描，再幫它們穿上彩色衣服。", fontSize = 15.sp)
-                        Spacer(Modifier.height(12.dp))
-                        Text("⭐ 已完成 " + completed + " / 36 幅作品", fontWeight = FontWeight.Bold)
                     }
                 }
+                NavigationTile("🖼️", "我的作品", lilac,
+                    Modifier.fillMaxWidth(), onGallery)
+                NavigationTile("🔊", "家長設定", mint,
+                    Modifier.fillMaxWidth(), onSettings)
             }
-            item {
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    NavigationTile("🖼️", "我的作品", lilac, Modifier.weight(1f), onGallery)
-                    NavigationTile("🔊", "家長設定", mint, Modifier.weight(1f), onSettings)
+            Column(Modifier.weight(1f).fillMaxHeight()) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        "挑選一個超市區域吧！",
+                        fontSize = if (compactLandscape) 18.sp else 22.sp,
+                        fontWeight = FontWeight.ExtraBold, color = navy
+                    )
                 }
-            }
-            item { Text("挑選一個主題區吧！", fontSize = 21.sp,
-                fontWeight = FontWeight.Bold, color = navy) }
-            items(ShopCatalog.categories.chunked(2)) { row ->
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    row.forEach { category ->
+                LazyVerticalGrid(
+                    columns = GridCells.Fixed(if (compactLandscape) 2 else 3),
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(bottom = 12.dp, end = 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    gridItems(ShopCatalog.categories) { category ->
                         val count = remember(progressTick) { store.completedCount(category.id) }
-                        Card(onClick = { onCategory(category.id) }, modifier = Modifier.weight(1f),
-                            shape = RoundedCornerShape(22.dp),
-                            colors = CardDefaults.cardColors(containerColor = Color.White)) {
-                            Column(Modifier.padding(14.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                                Text(category.icon, fontSize = 42.sp)
-                                Text(category.name, fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                                Text(category.subtitle, fontSize = 11.sp, color = Color.Gray,
-                                    textAlign = TextAlign.Center, maxLines = 1)
-                                Spacer(Modifier.height(7.dp))
-                                LinearProgressIndicator(progress = { count / 6f },
+                        Card(
+                            onClick = { onCategory(category.id) },
+                            shape = RoundedCornerShape(19.dp),
+                            colors = CardDefaults.cardColors(containerColor = Color.White),
+                            modifier = Modifier.fillMaxWidth()
+                                .height(if (compactLandscape) 126.dp else 144.dp)
+                        ) {
+                            Column(
+                                Modifier.fillMaxSize().padding(horizontal = 8.dp, vertical = 8.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Center
+                            ) {
+                                Text(category.icon, fontSize = if (compactLandscape) 30.sp else 37.sp)
+                                Text(category.name, fontWeight = FontWeight.Bold,
+                                    fontSize = if (compactLandscape) 14.sp else 16.sp,
+                                    maxLines = 1)
+                                Spacer(Modifier.height(4.dp))
+                                LinearProgressIndicator(
+                                    progress = { count / 6f },
                                     modifier = Modifier.fillMaxWidth().height(5.dp),
-                                    color = Color(0xFF65B894), trackColor = Color(0xFFE7E7E7))
-                                Text(count.toString() + " / 6", fontSize = 12.sp, color = Color.Gray)
+                                    color = Color(0xFF65B894),
+                                    trackColor = Color(0xFFE7E7E7)
+                                )
+                                Text("$count / 6", fontSize = 11.sp, color = Color.Gray)
                             }
                         }
                     }
@@ -248,7 +286,8 @@ private fun SettingsScreen(audio: AudioGuide, onBack: () -> Unit) {
     var easy by remember { mutableStateOf(audio.easyMode) }
     Column(Modifier.fillMaxSize()) {
         PageHeading("⚙️", "家長設定", "調整適合孩子的畫畫方式", onBack)
-        Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())
+            .padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
             SettingLine("🔊 語音說明", "朗讀物品與畫畫提示", voice) {
                 voice = it; audio.voiceEnabled = it; if (it) audio.speak("歡迎來畫畫")
             }
