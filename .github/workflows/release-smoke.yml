@@ -46,8 +46,14 @@ jobs:
             exit 1
           fi
           asset_count="$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/latest" \
-            --jq '[.assets[] | select(.name == "my-painter-latest.apk")] | length')"
-          [[ "$asset_count" == 1 ]] || { echo "::error::Expected exactly one latest APK"; exit 1; }
+            --jq '[.assets[] | select(.name | endswith(".apk"))] | length')"
+          [[ "$asset_count" == 1 ]] || { echo "::error::Expected exactly one APK in latest Release"; exit 1; }
+          asset_name="$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/latest" \
+            --jq '.assets[] | select(.name | endswith(".apk")) | .name')"
+          [[ "$asset_name" == "my-painter-latest.apk" ]] || {
+            echo "::error::The only released APK must have the stable filename my-painter-latest.apk."
+            exit 1
+          }
 
           gh release download latest -R "$GITHUB_REPOSITORY" \
             --pattern "my-painter-latest.apk" --dir ./smoke-apk
