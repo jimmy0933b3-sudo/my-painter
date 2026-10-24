@@ -26,83 +26,123 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.11.1'
+
       - name: Install Android API
+        shell: bash
         run: |
+          set -euo pipefail
           SDK_ROOT="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
           sdk_manager="$(find "$SDK_ROOT/cmdline-tools" -type f -name sdkmanager | head -n 1)"
           test -x "$sdk_manager"
           "$sdk_manager" "platforms;android-35" "build-tools;35.0.0"
-      - name: Unit tests and debug build
+
+      - name: Test and compile Android app
+        shell: bash
         run: gradle --no-daemon :app:testDebugUnitTest :app:assembleDebug "-PbuildVersionCode=$GITHUB_RUN_NUMBER"
-      - name: Prepare signing credentials
+
+      - name: Validate fixed release key
         if: github.event_name != 'pull_request'
+        shell: bash
         env:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
-          if [[ -n "$KEYSTORE_BASE64" && -n "$KEYSTORE_PASSWORD" && -n "$KEY_ALIAS" && -n "$KEY_PASSWORD" ]]; then
-            printf '%s' "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.jks"
-            echo "HAS_RELEASE_KEY=true" >> "$GITHUB_ENV"
-          else
-            echo "::warning::No signing secrets: publishing installable DEV APK (not update-stable)."
-            echo "HAS_RELEASE_KEY=false" >> "$GITHUB_ENV"
-          fi
-      - name: Signed release build
-        if: github.event_name != 'pull_request' && env.HAS_RELEASE_KEY == 'true'
-        env:
-          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
-          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
-        run: |
-          gradle --no-daemon :app:assembleRelease "-PbuildVersionCode=$GITHUB_RUN_NUMBER" \
-            "-PsigningStoreFile=$RUNNER_TEMP/release.jks" \
-            "-PsigningStorePassword=$KEYSTORE_PASSWORD" \
-            "-PsigningKeyAlias=$KEY_ALIAS" \
-            "-PsigningKeyPassword=$KEY_PASSWORD"
-          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose app/build/outputs/apk/release/app-release.apk
-          cp app/build/outputs/apk/release/app-release.apk my-painter-latest.apk
-      - name: DEV APK fallback
-        if: github.event_name != 'pull_request' && env.HAS_RELEASE_KEY != 'true'
-        run: cp app/build/outputs/apk/debug/app-debug.apk my-painter-latest.apk
-      - name: Publish latest APK
+          set -euo pipefail
+          for secret_name in KEYSTORE_BASE64 KEYSTORE_PASSWORD KEY_ALIAS KEY_PASSWORD; do
+            if [[ -z "${!secret_name}" ]]; then
+              echo "::error::Missing required Actions Secret $secret_name. Release aborted. Last APK is preserved."
+              exit 1
+            fi
+          done
+          umask 077
+          printf '%s' "$KEYSTORE_BASE64" | tr -d '\r\n\t ' | base64 --decode > "$RUNNER_TEMP/release.jks"
+          test -s "$RUNNER_TEMP/release.jks"
+          keytool -list -keystore "$RUNNER_TEMP/release.jks" \
+            -storepass:env KEYSTORE_PASSWORD -alias "$KEY_ALIAS" >/dev/null
+          echo "Verified configured signing keystore and alias; private key material stays secret."
+
+      - name: Build fixed-key signed APK
         if: github.event_name != 'pull_request'
+        shell: bash
+        env:
+          ORG_GRADLE_PROJECT_signingStorePassword: ${{ secrets.KEYSTORE_PASSWORD }}
+          ORG_GRADLE_PROJECT_signingKeyAlias: ${{ secrets.KEY_ALIAS }}
+          ORG_GRADLE_PROJECT_signingKeyPassword: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          gradle --no-daemon :app:assembleRelease \
+            "-PbuildVersionCode=$GITHUB_RUN_NUMBER" \
+            "-PsigningStoreFile=$RUNNER_TEMP/release.jks"
+          APK="app/build/outputs/apk/release/app-release.apk"
+          test -s "$APK"
+          APKSIGNER="$ANDROID_HOME/build-tools/35.0.0/apksigner"
+          "$APKSIGNER" verify --verbose "$APK"
+          CERT_SHA="$("$APKSIGNER" verify --print-certs "$APK" |
+            sed -n 's/^Signer #1 certificate SHA-256 digest: //p' | head -n 1)"
+          test -n "$CERT_SHA"
+          echo "SIGNER_SHA256=$CERT_SHA" >> "$GITHUB_ENV"
+          echo "### Signed APK" >> "$GITHUB_STEP_SUMMARY"
+          echo "Signer certificate SHA-256: \`$CERT_SHA\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "Build versionCode: \`$GITHUB_RUN_NUMBER\`" >> "$GITHUB_STEP_SUMMARY"
+          cp "$APK" my-painter-latest.apk
+
+      - name: Publish fixed-key signed APK
+        if: github.event_name != 'pull_request'
+        shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          if ! gh release view latest >/dev/null 2>&1; then
-            gh release create latest --target "$GITHUB_SHA" --title "My Painter 最新版" --notes "自動發布最新版 APK。"
+          # Prevent unintended keystore rotation after the first fixed-key release.
+          EXPECTED="$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/latest" \
+            --jq '.body' 2>/dev/null |
+            sed -n 's/^Signer SHA256: //p' | head -n 1 || true)"
+          if [[ -n "$EXPECTED" && "$EXPECTED" != "$SIGNER_SHA256" ]]; then
+            echo "::error::Release signing certificate changed! Refusing to replace the previous installable APK."
+            exit 1
           fi
-          # Do not use --clobber: it removes the old APK before upload is verified.
+
+          if ! gh release view latest >/dev/null 2>&1; then
+            gh release create latest --target "$GITHUB_SHA" --title "My Painter 固定簽章正式版" --notes "Preparing first release..."
+          fi
+
           staged="my-painter-staged-$GITHUB_RUN_ID.apk"
           cp my-painter-latest.apk "$staged"
           gh release upload latest "$staged"
-          release_id=$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/latest" --jq '.id')
-          new_id=$(gh api "repos/$GITHUB_REPOSITORY/releases/$release_id/assets" --jq '.[] | select(.name | startswith("my-painter-staged-")) | .id' | tail -n 1)
+          release_id="$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/latest" --jq '.id')"
+          new_id="$(gh api "repos/$GITHUB_REPOSITORY/releases/$release_id/assets" \
+            --jq '.[] | select(.name == "my-painter-staged-${{ github.run_id }}.apk") | .id' | head -n 1)"
           test -n "$new_id"
-          old_ids=$(gh api "repos/$GITHUB_REPOSITORY/releases/$release_id/assets" --jq '.[] | select(.name == "my-painter-latest.apk") | .id')
-          for asset_id in $old_ids; do
-            gh api -X DELETE "repos/$GITHUB_REPOSITORY/releases/assets/$asset_id"
+
+          # Stage first, then replace: a failed upload does not delete the old APK.
+          old_ids="$(gh api "repos/$GITHUB_REPOSITORY/releases/$release_id/assets" \
+            --jq '.[] | select(.name == "my-painter-latest.apk") | .id')"
+          for id in $old_ids; do
+            gh api -X DELETE "repos/$GITHUB_REPOSITORY/releases/assets/$id"
           done
-          gh api -X PATCH "repos/$GITHUB_REPOSITORY/releases/assets/$new_id" -f name="my-painter-latest.apk" --silent
-          # Remove orphan staged files from interrupted older runs.
-          gh api "repos/$GITHUB_REPOSITORY/releases/$release_id/assets" --jq '.[] | select(.name | startswith("my-painter-staged-")) | .id' |
+          gh api -X PATCH "repos/$GITHUB_REPOSITORY/releases/assets/$new_id" \
+            -f name="my-painter-latest.apk" --silent
+
+          gh release edit latest --title "My Painter 固定簽章正式版" \
+            --notes "$(printf 'Commit: %s\nSigner SHA256: %s\nversionCode: %s\n' "$GITHUB_SHA" "$SIGNER_SHA256" "$GITHUB_RUN_NUMBER")"
+
+          # Keep only latest release and one APK; purge obsolete artifacts.
+          gh api "repos/$GITHUB_REPOSITORY/releases/$release_id/assets" \
+            --jq '.[] | select(.name | startswith("my-painter-staged-")) | .id' |
             while IFS= read -r id; do gh api -X DELETE "repos/$GITHUB_REPOSITORY/releases/assets/$id"; done
-          if [[ "$HAS_RELEASE_KEY" == 'true' ]]; then
-            gh release edit latest --title "My Painter 正式簽章版" --notes "Commit: $GITHUB_SHA。"
-          else
-            gh release edit latest --title "My Painter DEV 測試版" --notes "Commit: $GITHUB_SHA。尚未設定固定簽章 Secrets，測試 APK 無法保證跨次覆蓋更新。"
-          fi
-          gh api --paginate "repos/$GITHUB_REPOSITORY/releases?per_page=100" --jq '.[].tag_name' |
+          gh api --paginate "repos/$GITHUB_REPOSITORY/releases?per_page=100" \
+            --jq '.[].tag_name' |
             while IFS= read -r tag; do
               if [[ "$tag" != "latest" ]]; then gh release delete "$tag" --yes --cleanup-tag; fi
             done
           gh api --paginate "repos/$GITHUB_REPOSITORY/actions/artifacts?per_page=100" \
             --jq '.artifacts[] | select(.name | startswith("my-painter-")) | .id' |
             while IFS= read -r id; do gh api -X DELETE "repos/$GITHUB_REPOSITORY/actions/artifacts/$id"; done
-      - name: PR diagnostics (1 day retention)
+          echo "Fixed-signature latest APK published and older APK assets cleaned up."
+
+      - name: PR diagnostics (1-day retention)
         if: github.event_name == 'pull_request'
         uses: actions/upload-artifact@v4
         with:
