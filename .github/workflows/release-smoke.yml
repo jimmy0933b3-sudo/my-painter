@@ -1,0 +1,30 @@
+name: Verify Latest APK
+on:
+  pull_request:
+    paths:
+      - .github/workflows/release-smoke.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify published installable package
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 12); do
+            if gh api "repos/$GITHUB_REPOSITORY/releases/tags/latest" --jq '.assets[] | select(.name == "my-painter-latest.apk") | .name' 2>/dev/null | grep -qx 'my-painter-latest.apk'; then break; fi
+            echo "Waiting for initial main build..."
+            sleep 10
+          done
+          gh api "repos/$GITHUB_REPOSITORY/releases/tags/latest" --jq '.assets[] | [.name, .size] | @tsv'
+          gh api "repos/$GITHUB_REPOSITORY/releases/tags/latest" --jq '.assets[] | select(.name == "my-painter-latest.apk") | .name' | grep -qx 'my-painter-latest.apk'
+          gh release download latest -R "$GITHUB_REPOSITORY" --pattern 'my-painter-latest.apk' --dir ./smoke-apk
+          test -s ./smoke-apk/my-painter-latest.apk
+          unzip -t ./smoke-apk/my-painter-latest.apk | tail -n 2
+          sha256sum ./smoke-apk/my-painter-latest.apk
