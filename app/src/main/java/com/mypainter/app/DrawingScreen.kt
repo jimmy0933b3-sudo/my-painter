@@ -58,22 +58,31 @@ fun DrawingScreen(
     onSaved: () -> Unit
 ) {
     val initial = remember(item.id) { store.read(item.id) }
+    val sourceArtwork = remember(item.id, item.icon) { EmojiArtwork.create(item.icon) }
     var step by remember(item.id) { mutableIntStateOf(initial.stage.coerceIn(0, item.paths.size)) }
     val fills = remember(item.id) { mutableStateMapOf<Int, Int>().apply { putAll(initial.fills) } }
     val marks = remember(item.id) { mutableStateListOf<InkStroke>().apply { addAll(initial.marks) } }
     val traceColors = remember(item.id) { mutableStateMapOf<Int, Int>().apply { putAll(initial.traceColors) } }
+    val rasterFills = remember(item.id) { mutableStateMapOf<Int, Int>().apply { putAll(initial.rasterFills) } }
+    val tracedStrokes = remember(item.id) { mutableStateListOf<InkStroke>().apply { addAll(initial.traceMarks) } }
     val preview = remember(item.id) { mutableStateListOf<SketchPoint>() }
     var mode by remember(item.id) {
         mutableStateOf(if (initial.stage >= item.paths.size) DrawingMode.BUCKET else DrawingMode.TRACE)
     }
     var colorIndex by remember(item.id) { mutableIntStateOf(0) }
+    var showOriginal by remember(item.id) { mutableStateOf(false) }
     var brushWidth by remember(item.id) { mutableFloatStateOf(4f) }
     var message by remember(item.id) { mutableStateOf("跟著橘色虛線，慢慢畫一筆吧！") }
     val selectedColor = Crayons.colors[colorIndex]
+    val traceCoverage = if (step >= item.paths.size) 1f else
+        sourceArtwork.traceCoverage(tracedStrokes.toList(), if (audio.easyMode) 4.5f else 3.0f)
     val completed = step >= item.paths.size
 
     fun snapshot(): SavedArtwork =
-        SavedArtwork(step, fills.toMap(), marks.toList(), traceColors.toMap())
+        SavedArtwork(
+            step, fills.toMap(), marks.toList(), traceColors.toMap(),
+            rasterFills.toMap(), tracedStrokes.toList()
+        )
     fun persist() {
         store.save(item.id, snapshot())
         onSaved()
@@ -84,26 +93,22 @@ fun DrawingScreen(
         if (points.size < 2) return
         when (mode) {
             DrawingMode.TRACE -> {
-                if (step >= item.paths.size) return
-                val accuracy = DrawingCore.coverage(item.paths[step], points,
-                    if (audio.easyMode) 11f else 7f)
-                if (accuracy >= if (audio.easyMode) 0.42f else 0.60f) {
-                    traceColors[step] = selectedColor.color
-                    step++
-                    persist()
+                if (completed) return
+                tracedStrokes.add(PaintActions.brushStroke(selectedColor.color, 1.1f, points))
+                val accuracy = sourceArtwork.traceCoverage(
+                    tracedStrokes.toList(), if (audio.easyMode) 4.5f else 3.0f
+                )
+                if (accuracy >= if (audio.easyMode) 0.43f else 0.58f) {
+                    step = item.paths.size
+                    message = "🎉 輪廓完成！選喜歡的顏色為" + item.name + "上色吧！"
                     audio.success()
-                    if (step >= item.paths.size) {
-                        message = "🎉 描線全部完成！選顏色幫" + item.name + "上色吧！"
-                        audio.speak("太棒了！" + item.name + "畫好了，現在來上色吧！")
-                        mode = DrawingMode.BUCKET
-                    } else {
-                        message = "⭐ 好棒！再畫下一筆！"
-                        audio.speak("畫得真好，再畫下一筆！")
-                    }
+                    audio.speak("太棒了！現在可以幫" + item.name + "上色囉！")
+                    mode = DrawingMode.BUCKET
                 } else {
-                    message = "再試一次，沿著虛線多畫一些就好！"
-                    audio.retry()
+                    message = "✍️ 很棒！繼續沿著原圖的輪廓畫。"
+                    audio.click()
                 }
+                persist()
             }
             DrawingMode.BRUSH -> {
                 marks.add(PaintActions.brushStroke(selectedColor.color, brushWidth, points))
@@ -117,9 +122,9 @@ fun DrawingScreen(
     fun touchStart(point: SketchPoint) {
         preview.clear()
         if (mode == DrawingMode.BUCKET) {
-            val region = DrawingCore.hitRegion(item, point)
+            val region = sourceArtwork.regionAt(point)
             if (region != null) {
-                PaintActions.fillRegion(fills, region, selectedColor.color)
+                PaintActions.fillRegion(rasterFills, region, selectedColor.color)
                 persist()
                 message = "🌈 " + selectedColor.title + "，真漂亮！"
                 audio.click()
@@ -177,8 +182,7 @@ fun DrawingScreen(
                             maxLines = 1
                         )
                         Text(
-                            "描線 " + step.coerceAtMost(item.paths.size) +
-                                " / " + item.paths.size + " 筆",
+                            "描繪原圖輪廓 " + (traceCoverage * 100).toInt() + "%",
                             fontSize = 12.sp, color = Color.Gray
                         )
                     }
@@ -188,7 +192,7 @@ fun DrawingScreen(
                     }
                 }
                 LinearProgressIndicator(
-                    progress = { DrawingCore.progress(item, snapshot()) },
+                    progress = { traceCoverage },
                     modifier = Modifier.fillMaxWidth().height(5.dp).clip(CircleShape),
                     color = Color(0xFF65B994),
                     trackColor = Color(0xFFFFE5C9)
@@ -245,9 +249,10 @@ fun DrawingScreen(
                             native.translate(50f, 50f)
                             native.scale(CanvasTransform.ZOOM, CanvasTransform.ZOOM)
                             native.translate(-50f, -50f)
-                            DrawingCore.render(
-                                native, item, snapshot(), preview.toList(),
-                                selectedColor.color, brushWidth, mode
+                            sourceArtwork.render(
+                                native, rasterFills.toMap(), marks.toList(),
+                                tracedStrokes.toList(), preview.toList(),
+                                selectedColor.color, brushWidth, mode, showOriginal
                             )
                             native.restore()
                         }
@@ -281,6 +286,15 @@ fun DrawingScreen(
                         fontWeight = FontWeight.ExtraBold,
                         fontSize = 17.sp
                     )
+                    ToolChoice(
+                        "👁️ 原圖參考",
+                        showOriginal, true,
+                        Modifier.fillMaxWidth()
+                    ) {
+                        showOriginal = !showOriginal
+                        message = if (showOriginal) "這是原圖，點一下可回到畫畫！"
+                                  else "用原圖生成的線稿來畫畫！"
+                    }
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         ToolChoice("✍️ 描線", mode == DrawingMode.TRACE && !completed,
                             !completed, Modifier.weight(1f)) {
@@ -300,10 +314,18 @@ fun DrawingScreen(
                             message = "點圖案裡面就能填色！"
                         }
                         ToolChoice("↩ 復原", false,
-                            marks.isNotEmpty() || fills.isNotEmpty(),
+                            marks.isNotEmpty() || rasterFills.isNotEmpty() ||
+                                tracedStrokes.isNotEmpty(),
                             Modifier.weight(1f)) {
-                            if (marks.isNotEmpty()) marks.removeAt(marks.lastIndex)
-                            else if (fills.isNotEmpty()) fills.remove(fills.keys.last())
+                            if (mode == DrawingMode.TRACE && tracedStrokes.isNotEmpty()) {
+                                tracedStrokes.removeAt(tracedStrokes.lastIndex)
+                            } else if (marks.isNotEmpty()) {
+                                marks.removeAt(marks.lastIndex)
+                            } else if (rasterFills.isNotEmpty()) {
+                                rasterFills.remove(rasterFills.keys.last())
+                            } else if (tracedStrokes.isNotEmpty()) {
+                                tracedStrokes.removeAt(tracedStrokes.lastIndex)
+                            }
                             persist()
                         }
                     }
