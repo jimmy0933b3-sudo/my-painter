@@ -4,6 +4,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.rememberScrollState
@@ -19,8 +20,11 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
@@ -227,7 +231,7 @@ private fun CategoryScreen(
                     colors = CardDefaults.cardColors(containerColor = Color.White)) {
                     Column(Modifier.fillMaxWidth().padding(16.dp),
                         horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(item.icon, fontSize = 60.sp)
+                        LineArtThumbnail(item, 112.dp)
                         Spacer(Modifier.height(8.dp))
                         Text(item.name, fontWeight = FontWeight.Bold, fontSize = 18.sp)
                         Spacer(Modifier.height(4.dp))
@@ -268,7 +272,7 @@ private fun GalleryScreen(
                         shape = RoundedCornerShape(20.dp)) {
                         Column(Modifier.fillMaxWidth().padding(16.dp),
                             horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text(item.icon, fontSize = 56.sp)
+                            LineArtThumbnail(item, 108.dp)
                             Text(item.name, fontSize = 18.sp, fontWeight = FontWeight.Bold)
                             Text("點擊繼續編輯", fontSize = 12.sp, color = Color.Gray)
                         }
@@ -316,4 +320,16 @@ private fun SettingLine(title: String, hint: String, value: Boolean, onChange: (
             Switch(checked = value, onCheckedChange = onChange)
         }
     }
+}
+
+/** Pickers and saved gallery share the actual in-app coloring picture. */
+@Composable
+private fun LineArtThumbnail(item: DrawingItem, side: Dp) {
+    val image = remember(item.id) { LineArtwork.create(item.id).preview.asImageBitmap() }
+    Image(
+        bitmap = image,
+        contentDescription = item.name + "的著色線稿",
+        modifier = Modifier.size(side),
+        contentScale = ContentScale.Fit
+    )
 }

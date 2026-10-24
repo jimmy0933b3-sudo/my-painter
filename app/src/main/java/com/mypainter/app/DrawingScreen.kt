@@ -58,7 +58,7 @@ fun DrawingScreen(
     onSaved: () -> Unit
 ) {
     val initial = remember(item.id) { store.read(item.id) }
-    val sourceArtwork = remember(item.id, item.icon) { EmojiArtwork.create(item.icon) }
+    val sourceArtwork = remember(item.id, item.icon) { LineArtwork.create(item.id) }
     var step by remember(item.id) { mutableIntStateOf(initial.stage.coerceIn(0, item.paths.size)) }
     val fills = remember(item.id) { mutableStateMapOf<Int, Int>().apply { putAll(initial.fills) } }
     val marks = remember(item.id) { mutableStateListOf<InkStroke>().apply { addAll(initial.marks) } }
@@ -72,10 +72,10 @@ fun DrawingScreen(
     var colorIndex by remember(item.id) { mutableIntStateOf(0) }
     var showOriginal by remember(item.id) { mutableStateOf(false) }
     var brushWidth by remember(item.id) { mutableFloatStateOf(4f) }
-    var message by remember(item.id) { mutableStateOf("跟著橘色虛線，慢慢畫一筆吧！") }
+    var message by remember(item.id) { mutableStateOf("沿著清楚的線條描一描，再填上喜歡的顏色！") }
     val selectedColor = Crayons.colors[colorIndex]
     val traceCoverage = if (step >= item.paths.size) 1f else
-        sourceArtwork.traceCoverage(tracedStrokes.toList(), if (audio.easyMode) 4.5f else 3.0f)
+        sourceArtwork.traceCoverage(tracedStrokes.toList(), if (audio.easyMode) 5.5f else 3.6f)
     val completed = step >= item.paths.size
 
     fun snapshot(): SavedArtwork =
@@ -98,14 +98,14 @@ fun DrawingScreen(
                 val accuracy = sourceArtwork.traceCoverage(
                     tracedStrokes.toList(), if (audio.easyMode) 4.5f else 3.0f
                 )
-                if (accuracy >= if (audio.easyMode) 0.43f else 0.58f) {
+                if (accuracy >= if (audio.easyMode) 0.28f else 0.44f) {
                     step = item.paths.size
                     message = "🎉 輪廓完成！選喜歡的顏色為" + item.name + "上色吧！"
                     audio.success()
                     audio.speak("太棒了！現在可以幫" + item.name + "上色囉！")
                     mode = DrawingMode.BUCKET
                 } else {
-                    message = "✍️ 很棒！繼續沿著原圖的輪廓畫。"
+                    message = "✍️ 很棒！也試試描裡面的線條。"
                     audio.click()
                 }
                 persist()
@@ -129,7 +129,7 @@ fun DrawingScreen(
                 message = "🌈 " + selectedColor.title + "，真漂亮！"
                 audio.click()
             } else {
-                message = "點選線條圍起來的地方，就能填上顏色！"
+                message = "請點黑色線條圍住的白色格子，就能填顏色！"
             }
         } else {
             preview.add(point)
@@ -172,7 +172,7 @@ fun DrawingScreen(
                         color = Color(0xFF37415C),
                         fontSize = 25.sp
                     )
-                    Text(item.icon, fontSize = 26.sp)
+                    Text("🖍️", fontSize = 26.sp)
                     Spacer(Modifier.width(8.dp))
                     Column(Modifier.weight(1f)) {
                         Text(
@@ -182,7 +182,7 @@ fun DrawingScreen(
                             maxLines = 1
                         )
                         Text(
-                            "描繪原圖輪廓 " + (traceCoverage * 100).toInt() + "%",
+                            "描線完成 " + (traceCoverage * 100).toInt() + "%",
                             fontSize = 12.sp, color = Color.Gray
                         )
                     }
@@ -287,13 +287,13 @@ fun DrawingScreen(
                         fontSize = 17.sp
                     )
                     ToolChoice(
-                        "👁️ 原圖參考",
+                        "👁️ 線稿參考",
                         showOriginal, true,
                         Modifier.fillMaxWidth()
                     ) {
                         showOriginal = !showOriginal
-                        message = if (showOriginal) "這是原圖，點一下可回到畫畫！"
-                                  else "用原圖生成的線稿來畫畫！"
+                        message = if (showOriginal) "這是黑白線稿，點一下回到你的畫作！"
+                                  else "有內部線條的著色圖，可以逐格填色！"
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         ToolChoice("✍️ 描線", mode == DrawingMode.TRACE && !completed,
