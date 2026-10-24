@@ -17,7 +17,10 @@ data class SavedArtwork(
     val fills: Map<Int, Int> = emptyMap(),
     val marks: List<InkStroke> = emptyList(),
     // Chosen crayon for each finished traced segment. Optional for older saved art.
-    val traceColors: Map<Int, Int> = emptyMap()
+    val traceColors: Map<Int, Int> = emptyMap(),
+    // Source-icon artwork engine; legacy fills/marks are kept for upgrades.
+    val rasterFills: Map<Int, Int> = emptyMap(),
+    val traceMarks: List<InkStroke> = emptyList()
 )
 
 enum class DrawingMode { TRACE, BRUSH, BUCKET }

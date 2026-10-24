@@ -22,9 +22,13 @@ class ArtworkStore(context: Context) {
             val traceColors = buildMap<Int, Int> {
                 traceData.keys().forEach { key -> put(key.toInt(), traceData.getInt(key)) }
             }
-            val strokes = json.optJSONArray("marks") ?: JSONArray()
-            val marks = (0 until strokes.length()).map { idx ->
-                val value = strokes.getJSONObject(idx)
+            val raster = json.optJSONObject("rasterFills") ?: JSONObject()
+            val rasterFills = buildMap<Int, Int> {
+                raster.keys().forEach { key -> put(key.toInt(), raster.getInt(key)) }
+            }
+            fun decodeStrokes(array: JSONArray): List<InkStroke> =
+                (0 until array.length()).map { idx ->
+                val value = array.getJSONObject(idx)
                 val points = value.getJSONArray("points")
                 InkStroke(value.getInt("color"), value.getDouble("width").toFloat(),
                     (0 until points.length()).map { i ->
@@ -32,7 +36,10 @@ class ArtworkStore(context: Context) {
                         SketchPoint(array.getDouble(0).toFloat(), array.getDouble(1).toFloat())
                     })
             }
-            SavedArtwork(json.optInt("stage", 0), fills, marks, traceColors)
+            val marks = decodeStrokes(json.optJSONArray("marks") ?: JSONArray())
+            val traceMarks = decodeStrokes(json.optJSONArray("traceMarks") ?: JSONArray())
+            SavedArtwork(json.optInt("stage", 0), fills, marks, traceColors,
+                rasterFills, traceMarks)
         }.getOrDefault(SavedArtwork())
     }
 
@@ -46,8 +53,11 @@ class ArtworkStore(context: Context) {
         json.put("traceColors", JSONObject().apply {
             artwork.traceColors.forEach { (key, color) -> put(key.toString(), color) }
         })
-        json.put("marks", JSONArray().apply {
-            artwork.marks.forEach { mark ->
+        json.put("rasterFills", JSONObject().apply {
+            artwork.rasterFills.forEach { (region, color) -> put(region.toString(), color) }
+        })
+        fun encodeStrokes(strokes: List<InkStroke>): JSONArray = JSONArray().apply {
+            strokes.forEach { mark ->
                 put(JSONObject().apply {
                     put("color", mark.color)
                     put("width", mark.width)
@@ -58,7 +68,9 @@ class ArtworkStore(context: Context) {
                     })
                 })
             }
-        })
+        }
+        json.put("marks", encodeStrokes(artwork.marks))
+        json.put("traceMarks", encodeStrokes(artwork.traceMarks))
         val target = File(directory, "$id.json")
         val temporary = File(directory, "$id.json.tmp")
         temporary.writeText(json.toString())
