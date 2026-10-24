@@ -141,133 +141,259 @@ fun DrawingScreen(
         finishStroke()
     }
 
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
-        PageHeading(item.icon, "畫畫：" + item.name,
-            "第 " + step.coerceAtMost(item.paths.size) + " / " + item.paths.size + " 筆描線", onBack)
-        LinearProgressIndicator(
-            progress = { DrawingCore.progress(item, snapshot()) },
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp).height(7.dp).clip(CircleShape),
-            color = Color(0xFF68B9A0), trackColor = Color(0xFFFFE4C6)
-        )
-        Spacer(Modifier.height(8.dp))
-        Card(
-            colors = CardDefaults.cardColors(containerColor = Color.White),
-            shape = RoundedCornerShape(24.dp),
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 13.dp)
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+        val narrowLandscape = maxWidth < 760.dp
+        val sidebarWidth = if (maxWidth < 670.dp) 224.dp
+            else if (maxWidth < 1050.dp) 276.dp else 328.dp
+        val swatchSize = if (sidebarWidth < 250.dp) 29.dp
+            else if (sidebarWidth < 300.dp) 35.dp else 43.dp
+
+        Row(
+            modifier = Modifier.fillMaxSize().padding(horizontal = 8.dp, vertical = 5.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            Canvas(
-                modifier = Modifier.fillMaxWidth().aspectRatio(1f).padding(12.dp)
-                    .pointerInput(item.id, mode, step) {
-                        awaitEachGesture {
-                            val down = awaitFirstDown(requireUnconsumed = false)
-                            down.consume()
-                            fun point(x: Float, y: Float) = SketchPoint(
-                                (x / size.width * 100f).coerceIn(0f, 100f),
-                                (y / size.height * 100f).coerceIn(0f, 100f))
-                            latestTouchStart.value(point(down.position.x, down.position.y))
-                            var active = true
-                            while (active) {
-                                val event = awaitPointerEvent()
-                                val change = event.changes.firstOrNull { it.id == down.id }
-                                if (change == null || !change.pressed) {
-                                    active = false
-                                    if (mode != DrawingMode.BUCKET) latestFinishStroke.value()
-                                } else {
-                                    if (mode != DrawingMode.BUCKET) {
-                                        preview.add(point(change.position.x, change.position.y))
+            // Keep the illustration on a stationary, square canvas.
+            // Only the right-hand controls scroll, so a drawing gesture
+            // can never scroll the entire page away from the child.
+            Column(Modifier.weight(1f).fillMaxHeight()) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().height(48.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        "❮",
+                        modifier = Modifier.clickable { onBack() }
+                            .padding(start = 8.dp, end = 14.dp, top = 5.dp, bottom = 5.dp),
+                        color = Color(0xFF37415C),
+                        fontSize = 25.sp
+                    )
+                    Text(item.icon, fontSize = 26.sp)
+                    Spacer(Modifier.width(8.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(
+                            "畫畫：" + item.name,
+                            fontSize = if (narrowLandscape) 18.sp else 23.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            maxLines = 1
+                        )
+                        Text(
+                            "描線 " + step.coerceAtMost(item.paths.size) +
+                                " / " + item.paths.size + " 筆",
+                            fontSize = 12.sp, color = Color.Gray
+                        )
+                    }
+                    if (completed) {
+                        Text("⭐ 完成", color = Color(0xFF3F9878),
+                            fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+                LinearProgressIndicator(
+                    progress = { DrawingCore.progress(item, snapshot()) },
+                    modifier = Modifier.fillMaxWidth().height(5.dp).clip(CircleShape),
+                    color = Color(0xFF65B994),
+                    trackColor = Color(0xFFFFE5C9)
+                )
+
+                BoxWithConstraints(
+                    modifier = Modifier.fillMaxWidth().weight(1f),
+                    contentAlignment = Alignment.Center
+                ) {
+                    // Clamp to BOTH available dimensions: the picture remains
+                    // large without being cut off on short landscape phones.
+                    val canvasSide = minOf(maxWidth, maxHeight) - 4.dp
+                    Card(
+                        modifier = Modifier.size(canvasSide.coerceAtLeast(64.dp)),
+                        shape = RoundedCornerShape(17.dp),
+                        colors = CardDefaults.cardColors(containerColor = Color.White),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                    ) {
+                        Canvas(
+                            modifier = Modifier.fillMaxSize().padding(5.dp)
+                                .pointerInput(item.id, mode, step) {
+                                    awaitEachGesture {
+                                        val down = awaitFirstDown(requireUnconsumed = false)
+                                        down.consume()
+                                        fun point(x: Float, y: Float): SketchPoint =
+                                            CanvasTransform.screenToArt(
+                                                x, y, size.width.toFloat(), size.height.toFloat()
+                                            )
+
+                                        latestTouchStart.value(
+                                            point(down.position.x, down.position.y)
+                                        )
+                                        while (true) {
+                                            val event = awaitPointerEvent()
+                                            val change = event.changes.firstOrNull { it.id == down.id }
+                                            if (change == null || !change.pressed) {
+                                                if (mode != DrawingMode.BUCKET)
+                                                    latestFinishStroke.value()
+                                                break
+                                            }
+                                            if (mode != DrawingMode.BUCKET) {
+                                                preview.add(point(
+                                                    change.position.x, change.position.y
+                                                ))
+                                            }
+                                            change.consume()
+                                        }
                                     }
-                                    change.consume()
                                 }
+                        ) {
+                            val native = drawContext.canvas.nativeCanvas
+                            native.save()
+                            native.scale(size.width / 100f, size.height / 100f)
+                            native.translate(50f, 50f)
+                            native.scale(CanvasTransform.ZOOM, CanvasTransform.ZOOM)
+                            native.translate(-50f, -50f)
+                            DrawingCore.render(
+                                native, item, snapshot(), preview.toList(),
+                                selectedColor.color, brushWidth, mode
+                            )
+                            native.restore()
+                        }
+                    }
+                }
+                Text(
+                    message,
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 28.dp),
+                    fontSize = if (narrowLandscape) 12.sp else 14.sp,
+                    textAlign = TextAlign.Center,
+                    maxLines = 2,
+                    lineHeight = 16.sp,
+                    color = Color(0xFF855C3C),
+                    fontWeight = FontWeight.Medium
+                )
+            }
+
+            Card(
+                modifier = Modifier.width(sidebarWidth).fillMaxHeight(),
+                shape = RoundedCornerShape(18.dp),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFFFFFDFC))
+            ) {
+                Column(
+                    modifier = Modifier.fillMaxSize()
+                        .verticalScroll(rememberScrollState())
+                        .padding(horizontal = 10.dp, vertical = 10.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        "🖍️ 畫畫工具",
+                        fontWeight = FontWeight.ExtraBold,
+                        fontSize = 17.sp
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        ToolChoice("✍️ 描線", mode == DrawingMode.TRACE && !completed,
+                            !completed, Modifier.weight(1f)) {
+                            mode = DrawingMode.TRACE
+                            message = "沿著虛線畫畫，從小圓點開始！"
+                        }
+                        ToolChoice("🖌️ 畫筆", mode == DrawingMode.BRUSH,
+                            true, Modifier.weight(1f)) {
+                            mode = DrawingMode.BRUSH
+                            message = "在圖案裡自由上色！"
+                        }
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        ToolChoice("🪣 填色", mode == DrawingMode.BUCKET,
+                            true, Modifier.weight(1f)) {
+                            mode = DrawingMode.BUCKET
+                            message = "點圖案裡面就能填色！"
+                        }
+                        ToolChoice("↩ 復原", false,
+                            marks.isNotEmpty() || fills.isNotEmpty(),
+                            Modifier.weight(1f)) {
+                            if (marks.isNotEmpty()) marks.removeAt(marks.lastIndex)
+                            else if (fills.isNotEmpty()) fills.remove(fills.keys.last())
+                            persist()
+                        }
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            "🎨 36 種顏色",
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.weight(1f)
+                        )
+                        Box(
+                            Modifier.size(22.dp).clip(CircleShape)
+                                .background(Color(selectedColor.color))
+                                .border(1.dp, Color(0xFF848A95), CircleShape)
+                        )
+                        Spacer(Modifier.width(5.dp))
+                        Text(selectedColor.title, fontSize = 11.sp, maxLines = 1)
+                    }
+
+                    // Six columns with six rows. The independent sidebar scroll
+                    // keeps ALL 36 colors reachable without shrinking the canvas.
+                    Crayons.colors.chunked(6).forEachIndexed { rowIndex, crayons ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceEvenly,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            crayons.forEachIndexed { columnIndex, crayon ->
+                                val index = rowIndex * 6 + columnIndex
+                                Box(
+                                    Modifier.size(swatchSize)
+                                        .clip(CircleShape)
+                                        .background(Color(crayon.color))
+                                        .border(
+                                            if (colorIndex == index) 3.dp else 1.dp,
+                                            if (colorIndex == index) Color(0xFF3D4358)
+                                            else Color(0xFFB4B6BD),
+                                            CircleShape
+                                        )
+                                        .clickable {
+                                            colorIndex = index
+                                            audio.click()
+                                            audio.speak(crayon.title)
+                                        }
+                                )
                             }
                         }
                     }
-            ) {
-                val native = drawContext.canvas.nativeCanvas
-                native.save()
-                native.scale(size.width / 100f, size.height / 100f)
-                DrawingCore.render(native, item, snapshot(), preview.toList(),
-                    selectedColor.color, brushWidth, mode)
-                native.restore()
+                    Text("畫筆粗細", fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                    Slider(
+                        value = brushWidth,
+                        onValueChange = { brushWidth = it },
+                        valueRange = 2f..11f,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    if (completed) {
+                        Text(
+                            "🏆 " + item.name + "描線完成！",
+                            color = Color(0xFF398A69),
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
             }
         }
-        Text(message, modifier = Modifier.fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-            textAlign = TextAlign.Center, fontSize = 15.sp,
-            color = Color(0xFF896042), fontWeight = FontWeight.Bold)
-        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())
-            .padding(horizontal = 12.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            ToolChoice("✍️ 描線", mode == DrawingMode.TRACE && !completed, !completed) {
-                mode = DrawingMode.TRACE
-                message = "沿著虛線畫畫，從小圓點開始！"
-            }
-            ToolChoice("🖌️ 畫筆", mode == DrawingMode.BRUSH, true) {
-                mode = DrawingMode.BRUSH
-                message = "試著在圖案裡自由上色！"
-            }
-            ToolChoice("🪣 填色", mode == DrawingMode.BUCKET, true) {
-                mode = DrawingMode.BUCKET
-                message = "點圖案內部就能填上顏色！"
-            }
-            ToolChoice("↩ 復原", false, marks.isNotEmpty() || fills.isNotEmpty()) {
-                if (marks.isNotEmpty()) marks.removeAt(marks.lastIndex)
-                else if (fills.isNotEmpty()) fills.remove(fills.keys.last())
-                persist()
-            }
-        }
-        Spacer(Modifier.height(10.dp))
-        Text("🎨 選擇顏色（36 色）", fontWeight = FontWeight.Bold,
-            fontSize = 17.sp, modifier = Modifier.padding(horizontal = 18.dp))
-        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())
-            .padding(horizontal = 12.dp, vertical = 9.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically) {
-            Crayons.colors.forEachIndexed { index, crayon ->
-                Box(Modifier.size(if (colorIndex == index) 49.dp else 41.dp)
-                    .clip(CircleShape)
-                    .background(Color(crayon.color))
-                    .border(if (colorIndex == index) 4.dp else 1.dp,
-                        if (colorIndex == index) Color(0xFF3D4358)
-                        else Color(0xFFB9BBC4), CircleShape)
-                    .clickable {
-                        colorIndex = index
-                        audio.click()
-                        audio.speak(crayon.title)
-                    })
-            }
-        }
-        Row(Modifier.fillMaxWidth().padding(horizontal = 18.dp),
-            verticalAlignment = Alignment.CenterVertically) {
-            Box(
-                modifier = Modifier.size(22.dp).clip(CircleShape)
-                    .background(Color(selectedColor.color))
-                    .border(1.dp, Color(0xFF7D8290), CircleShape)
-            )
-            Spacer(Modifier.width(7.dp))
-            Text("目前：" + selectedColor.title, fontSize = 14.sp, modifier = Modifier.weight(1f))
-            Text("畫筆粗細", fontSize = 13.sp)
-            Slider(value = brushWidth, onValueChange = { brushWidth = it }, valueRange = 2f..11f,
-                modifier = Modifier.width(135.dp))
-        }
-        if (completed) {
-            Text("🏆 你完成了" + item.name + "的描線！",
-                modifier = Modifier.fillMaxWidth().padding(14.dp),
-                color = Color(0xFF4A997C), textAlign = TextAlign.Center,
-                fontSize = 18.sp, fontWeight = FontWeight.ExtraBold)
-        }
-        Spacer(Modifier.height(16.dp))
     }
 }
 
 @Composable
-private fun ToolChoice(text: String, selected: Boolean, enabled: Boolean, onClick: () -> Unit) {
+private fun ToolChoice(
+    text: String,
+    selected: Boolean,
+    enabled: Boolean,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
     if (selected) {
-        Button(onClick = onClick, enabled = enabled,
-            shape = RoundedCornerShape(15.dp),
-            contentPadding = PaddingValues(horizontal = 14.dp)) { Text(text) }
+        Button(
+            onClick = onClick, enabled = enabled,
+            modifier = modifier.height(38.dp),
+            shape = RoundedCornerShape(12.dp),
+            contentPadding = PaddingValues(horizontal = 3.dp)
+        ) { Text(text, fontSize = 12.sp, maxLines = 1) }
     } else {
-        OutlinedButton(onClick = onClick, enabled = enabled,
-            shape = RoundedCornerShape(15.dp),
-            contentPadding = PaddingValues(horizontal = 14.dp)) { Text(text) }
+        OutlinedButton(
+            onClick = onClick, enabled = enabled,
+            modifier = modifier.height(38.dp),
+            shape = RoundedCornerShape(12.dp),
+            contentPadding = PaddingValues(horizontal = 3.dp)
+        ) { Text(text, fontSize = 12.sp, maxLines = 1) }
     }
 }
