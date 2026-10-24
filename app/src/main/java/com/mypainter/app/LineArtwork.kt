@@ -35,7 +35,7 @@ object LineArtCodec {
     }
 }
 
-class LineArtwork private constructor(private val ink: BooleanArray) {
+class LineArtwork private constructor(private val ink: BooleanArray, private val sourceId: String) {
     private val side = LineArtCodec.SIDE
     private val regionIds = IntArray(ink.size)
     private val outlineImage: Bitmap
@@ -46,12 +46,17 @@ class LineArtwork private constructor(private val ink: BooleanArray) {
     val preview: Bitmap get() = outlineImage
 
     init {
+        // The original broccoli outline has a tiny gap at its stem. Close
+        // 1-2 pixel gaps ONLY in the region detector, retaining the exact
+        // original drawn lines in the displayed artwork.
+        val barriers = if (sourceId == "broccoli") closeTinyGaps(ink, side)
+                       else ink
         // 4-connected flood fill of the paper's white cells.
         // Region zero is the black stroke; edge-connected white space is -1.
         val queue = IntArray(ink.size)
         var nextId = 1000 // avoids collisions with pre-upgrade emoji rasterFills
         for (p in ink.indices) {
-            if (ink[p] || regionIds[p] != 0) continue
+            if (barriers[p] || regionIds[p] != 0) continue
             nextId++
             var head = 0
             var tail = 1
@@ -65,7 +70,7 @@ class LineArtwork private constructor(private val ink: BooleanArray) {
                 if (x == 0 || y == 0 || x == side - 1 || y == side - 1)
                     touchesEdge = true
                 fun push(n: Int) {
-                    if (n in ink.indices && !ink[n] && regionIds[n] == 0) {
+                    if (n in barriers.indices && !barriers[n] && regionIds[n] == 0) {
                         regionIds[n] = nextId
                         queue[tail++] = n
                     }
@@ -199,8 +204,26 @@ class LineArtwork private constructor(private val ink: BooleanArray) {
     }
 
     companion object {
+        private fun closeTinyGaps(source: BooleanArray, side: Int): BooleanArray {
+            val dilated = BooleanArray(source.size)
+            for (y in 1 until side - 1) for (x in 1 until side - 1) {
+                val i = y * side + x
+                dilated[i] = (-1..1).any { dy ->
+                    (-1..1).any { dx -> source[i + dy * side + dx] }
+                }
+            }
+            val closed = BooleanArray(source.size)
+            for (y in 2 until side - 2) for (x in 2 until side - 2) {
+                val i = y * side + x
+                closed[i] = (-1..1).all { dy ->
+                    (-1..1).all { dx -> dilated[i + dy * side + dx] }
+                }
+            }
+            return closed
+        }
+
         fun create(id: String): LineArtwork =
-            LineArtwork(LineArtCodec.unpack(LineArtSources.encoded(id)))
+            LineArtwork(LineArtCodec.unpack(LineArtSources.encoded(id)), id)
 
         private fun drawInk(canvas: Canvas, color: Int, width: Float, points: List<SketchPoint>) {
             if (points.isEmpty()) return
