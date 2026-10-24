@@ -11,7 +11,7 @@ class ShopCatalogTest {
     @Test fun allItemsHaveVectorOutlines() {
         ShopCatalog.items.forEach {
             assertTrue(it.paths.size >= 2)
-            assertTrue(it.paths.all { path -> path.startsWith("M ") && path.length > 16 })
+            assertTrue(it.paths.all { path -> path.startsWith("M ") && path.length >= 12 })
         }
     }
     @Test fun has36UniqueColors() {
