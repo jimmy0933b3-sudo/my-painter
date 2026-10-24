@@ -30,7 +30,7 @@ gradle :app:testDebugUnitTest
 
 推送 `main` 後，GitHub Actions 會：
 1. 使用 JDK 17、Gradle 8.11.1 執行單元測試與 Android Build；
-2. 有正式簽章 Secrets 時組裝及驗證 `release` APK，沒有 Secrets 時先提供**測試 debug APK**；
+2. **正式發布強制使用四個固定簽章 Secrets**；若缺少或金鑰有誤，Workflow 失敗且不取代現有 APK。PR 只產生 1 天有效的 Debug 測試檔。
 3. 發布至單一 [latest Release](https://github.com/jimmy0933b3-sudo/my-painter/releases/tag/latest)，每次覆蓋 `my-painter-latest.apk`；
 4. **只有新版上傳成功後**才清除舊 Release 與暫存 APK Artifacts。PR Artifacts 最多保留 1 天。
 
@@ -42,9 +42,11 @@ gradle :app:testDebugUnitTest
 - `KEY_ALIAS`
 - `KEY_PASSWORD`
 
-設定後重新執行 Workflow，即可產生可直接覆蓋升級的固定簽章版 APK。妥善備份原始 JKS，遺失後無法使用相同簽章更新已安裝的正式版。
+最新 `main` Workflow 會先驗證 JKS、alias、密碼，再使用同一把私鑰簽署 Release APK；透過 `apksigner verify --print-certs` 取得公開證書 SHA-256，並記錄至 GitHub Release 說明。如果之後簽章指紋意外改變，CI 會拒絕覆蓋既有正式版本。妥善備份 JKS 與密碼。
 
-**請注意：**在尚未設定 Secrets 時，CI 每次取得的 debug 簽章可能不同，無法保證跨版本保留原安裝；而測試版套件名稱包含 `.debug`，與正式版屬不同 App。請在正式交付前完成 Secrets 設定。
+**請注意：**先前下載的 DEV 測試版使用 `com.mypainter.app.debug`，與固定簽章正式版 `com.mypainter.app` 是不同 App；兩者不能直接互相覆蓋，資料也不會自動搬移。首次安裝正式版後，後續只要使用相同 JKS、套件名稱且遞增 versionCode，就可以覆蓋更新。正式版不再使用 Debug APK 備援。
+
+啟動圖示採繪畫主題的彩色畫冊、蘋果、畫筆與調色盤，包含 Android 圓形及自適應圖示。
 
 ## 程式碼位置
 
