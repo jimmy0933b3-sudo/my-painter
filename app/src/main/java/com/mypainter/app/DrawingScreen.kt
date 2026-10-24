@@ -61,6 +61,7 @@ fun DrawingScreen(
     var step by remember(item.id) { mutableIntStateOf(initial.stage.coerceIn(0, item.paths.size)) }
     val fills = remember(item.id) { mutableStateMapOf<Int, Int>().apply { putAll(initial.fills) } }
     val marks = remember(item.id) { mutableStateListOf<InkStroke>().apply { addAll(initial.marks) } }
+    val traceColors = remember(item.id) { mutableStateMapOf<Int, Int>().apply { putAll(initial.traceColors) } }
     val preview = remember(item.id) { mutableStateListOf<SketchPoint>() }
     var mode by remember(item.id) {
         mutableStateOf(if (initial.stage >= item.paths.size) DrawingMode.BUCKET else DrawingMode.TRACE)
@@ -71,7 +72,8 @@ fun DrawingScreen(
     val selectedColor = Crayons.colors[colorIndex]
     val completed = step >= item.paths.size
 
-    fun snapshot(): SavedArtwork = SavedArtwork(step, fills.toMap(), marks.toList())
+    fun snapshot(): SavedArtwork =
+        SavedArtwork(step, fills.toMap(), marks.toList(), traceColors.toMap())
     fun persist() {
         store.save(item.id, snapshot())
         onSaved()
@@ -86,6 +88,7 @@ fun DrawingScreen(
                 val accuracy = DrawingCore.coverage(item.paths[step], points,
                     if (audio.easyMode) 11f else 7f)
                 if (accuracy >= if (audio.easyMode) 0.42f else 0.60f) {
+                    traceColors[step] = selectedColor.color
                     step++
                     persist()
                     audio.success()
