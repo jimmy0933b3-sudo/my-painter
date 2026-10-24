@@ -88,64 +88,97 @@ jobs:
           echo "Build versionCode: \`$GITHUB_RUN_NUMBER\`" >> "$GITHUB_STEP_SUMMARY"
           cp "$APK" my-painter-latest.apk
 
-      - name: Publish fixed-key signed APK
+      - name: Publish only the newest signed APK
         if: github.event_name != 'pull_request'
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          # Prevent unintended keystore rotation after the first fixed-key release.
-          EXPECTED="$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/latest" \
+          # Fixed signing certificate must match the preceding official release.
+          expected="$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/latest" \
             --jq '.body' 2>/dev/null |
             sed -n 's/^Signer SHA256: //p' | head -n 1 || true)"
-          if [[ -n "$EXPECTED" && "$EXPECTED" != "$SIGNER_SHA256" ]]; then
-            echo "::error::Release signing certificate changed! Refusing to replace the previous installable APK."
+          if [[ -n "$expected" && "$expected" != "$SIGNER_SHA256" ]]; then
+            echo "::error::Release certificate changed; latest APK has NOT been replaced."
             exit 1
           fi
 
           if ! gh release view latest >/dev/null 2>&1; then
-            gh release create latest --target "$GITHUB_SHA" --title "My Painter 固定簽章正式版" --notes "Preparing first release..."
+            gh release create latest --target "$GITHUB_SHA" \
+              --title "My Painter 固定簽章正式版" \
+              --notes "Preparing first signed release."
           fi
 
+          release_id="$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/latest" --jq '.id')"
           staged="my-painter-staged-$GITHUB_RUN_ID.apk"
           cp my-painter-latest.apk "$staged"
           gh release upload latest "$staged"
-          release_id="$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/latest" --jq '.id')"
-          new_id="$(gh api "repos/$GITHUB_REPOSITORY/releases/$release_id/assets" \
-            --jq '.[] | select(.name == "my-painter-staged-${{ github.run_id }}.apk") | .id' | head -n 1)"
-          test -n "$new_id"
+          asset_json="$(gh api "repos/$GITHUB_REPOSITORY/releases/$release_id/assets?per_page=100")"
+          new_id="$(printf '%s' "$asset_json" | jq -r --arg n "$staged" \
+            '.[] | select(.name == $n and .size > 0 and .state == "uploaded") | .id' | head -n 1)"
+          if [[ -z "$new_id" ]]; then
+            echo "::error::New APK was not successfully uploaded; preserving previous latest APK."
+            exit 1
+          fi
 
-          # Stage first, then replace: a failed upload does not delete the old APK.
-          old_ids="$(gh api "repos/$GITHUB_REPOSITORY/releases/$release_id/assets" \
+          # GitHub cannot atomically overwrite an asset. Keep the previous APK as a
+          # temporary backup until the new file owns the stable download filename.
+          old_ids="$(printf '%s' "$asset_json" | jq -r \
+            '.[] | select(.name == "my-painter-latest.apk") | .id')"
+          if [[ "$(printf '%s\n' "$old_ids" | sed '/^$/d' | wc -l)" -gt 1 ]]; then
+            echo "::error::Multiple existing latest assets found; refusing destructive replacement."
+            exit 1
+          fi
+          if [[ -n "$old_ids" ]]; then
+            gh api -X PATCH "repos/$GITHUB_REPOSITORY/releases/assets/$old_ids" \
+              -f name="my-painter-backup-$old_ids.apk" --silent
+          fi
+          if ! gh api -X PATCH "repos/$GITHUB_REPOSITORY/releases/assets/$new_id" \
+              -f name="my-painter-latest.apk" --silent; then
+            echo "::error::Renaming uploaded APK failed; recovering previous latest APK."
+            if [[ -n "$old_ids" ]]; then
+              gh api -X PATCH "repos/$GITHUB_REPOSITORY/releases/assets/$old_ids" \
+                -f name="my-painter-latest.apk" --silent
+            fi
+            exit 1
+          fi
+
+          # Confirm stable filename points to the new artifact before deletion.
+          installed_id="$(gh api "repos/$GITHUB_REPOSITORY/releases/$release_id/assets?per_page=100" \
             --jq '.[] | select(.name == "my-painter-latest.apk") | .id')"
-          for id in $old_ids; do
-            gh api -X DELETE "repos/$GITHUB_REPOSITORY/releases/assets/$id"
-          done
-          gh api -X PATCH "repos/$GITHUB_REPOSITORY/releases/assets/$new_id" \
-            -f name="my-painter-latest.apk" --silent
+          if [[ "$installed_id" != "$new_id" ]]; then
+            echo "::error::Latest APK confirmation failed; retaining backup and stopping cleanup."
+            exit 1
+          fi
 
-          gh release edit latest --title "My Painter 固定簽章正式版" \
-            --notes "$(printf 'Commit: %s\nSigner SHA256: %s\nversionCode: %s\n' "$GITHUB_SHA" "$SIGNER_SHA256" "$GITHUB_RUN_NUMBER")"
+          gh release edit latest --target "$GITHUB_SHA" \
+            --title "My Painter 固定簽章正式版" \
+            --notes "$(printf 'Commit: %s\nSigner SHA256: %s\nversionCode: %s\n' \
+              "$GITHUB_SHA" "$SIGNER_SHA256" "$GITHUB_RUN_NUMBER")"
 
-          # Keep only latest release and one APK; purge obsolete artifacts.
-          gh api "repos/$GITHUB_REPOSITORY/releases/$release_id/assets" \
-            --jq '.[] | select(.name | startswith("my-painter-staged-")) | .id' |
-            while IFS= read -r id; do gh api -X DELETE "repos/$GITHUB_REPOSITORY/releases/assets/$id"; done
-          gh api --paginate "repos/$GITHUB_REPOSITORY/releases?per_page=100" \
-            --jq '.[].tag_name' |
-            while IFS= read -r tag; do
-              if [[ "$tag" != "latest" ]]; then gh release delete "$tag" --yes --cleanup-tag; fi
+          # Once verified, delete all other APK assets, staged files and old releases.
+          gh api --paginate "repos/$GITHUB_REPOSITORY/releases/$release_id/assets?per_page=100" \
+            --jq '.[] | select(.name != "my-painter-latest.apk" and (.name | endswith(".apk"))) | .id' |
+            while IFS= read -r id; do
+              if [[ -n "$id" ]]; then
+                gh api -X DELETE "repos/$GITHUB_REPOSITORY/releases/assets/$id"
+              fi
             done
+          gh api --paginate "repos/$GITHUB_REPOSITORY/releases?per_page=100" \
+            --jq '.[] | select(.tag_name != "latest") | .tag_name' |
+            while IFS= read -r tag; do
+              if [[ -n "$tag" ]]; then gh release delete "$tag" --yes --cleanup-tag; fi
+            done
+
+          # No PR APK artifact is uploaded. Clear preexisting ones from old CI runs.
           gh api --paginate "repos/$GITHUB_REPOSITORY/actions/artifacts?per_page=100" \
             --jq '.artifacts[] | select(.name | startswith("my-painter-")) | .id' |
-            while IFS= read -r id; do gh api -X DELETE "repos/$GITHUB_REPOSITORY/actions/artifacts/$id"; done
-          echo "Fixed-signature latest APK published and older APK assets cleaned up."
-
-      - name: PR diagnostics (1-day retention)
-        if: github.event_name == 'pull_request'
-        uses: actions/upload-artifact@v4
-        with:
-          name: my-painter-pr-${{ github.run_id }}
-          path: app/build/outputs/apk/debug/app-debug.apk
-          retention-days: 1
+            while IFS= read -r id; do
+              if [[ -n "$id" ]]; then
+                gh api -X DELETE "repos/$GITHUB_REPOSITORY/actions/artifacts/$id"
+              fi
+            done
+          echo "### Publication verified" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Latest APK: \`my-painter-latest.apk\` (only retained APK)" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Release: https://github.com/$GITHUB_REPOSITORY/releases/tag/latest" >> "$GITHUB_STEP_SUMMARY"

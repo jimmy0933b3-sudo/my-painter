@@ -32,7 +32,9 @@ gradle :app:testDebugUnitTest
 1. 使用 JDK 17、Gradle 8.11.1 執行單元測試與 Android Build；
 2. **正式發布強制使用四個固定簽章 Secrets**；若缺少或金鑰有誤，Workflow 失敗且不取代現有 APK。PR 只產生 1 天有效的 Debug 測試檔。
 3. 發布至單一 [latest Release](https://github.com/jimmy0933b3-sudo/my-painter/releases/tag/latest)，每次覆蓋 `my-painter-latest.apk`；
-4. **只有新版上傳成功後**才清除舊 Release 與暫存 APK Artifacts。PR Artifacts 最多保留 1 天。
+4. **PR 只執行測試與編譯，不上傳或長期保留 Debug APK**；`main` 才會發布正式簽章 APK。
+5. 新版 APK 上傳並驗證成功後，先保留上一版做臨時備份，再安全切換固定下載檔名為 `my-painter-latest.apk`，最後清除備份、其他 APK、舊 Releases 與原本的 PR APK Artifacts。失敗時保留上一版。
+6. GitHub Releases 只保留 `latest`，其 APK 資產只會有 **1 個**。GitHub Actions 的建置日誌與 Gradle 相依套件快取仍依 GitHub 的個別保留設定管理，並不等同於 APK。
 
 ### 設定固定正式簽章（重要）
 
