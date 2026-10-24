@@ -103,7 +103,7 @@ fun DrawingScreen(
                 }
             }
             DrawingMode.BRUSH -> {
-                marks.add(InkStroke(selectedColor.color, brushWidth, points))
+                marks.add(PaintActions.brushStroke(selectedColor.color, brushWidth, points))
                 persist()
                 message = "✏️ 畫好了！可以繼續選顏色。"
                 audio.click()
@@ -116,7 +116,7 @@ fun DrawingScreen(
         if (mode == DrawingMode.BUCKET) {
             val region = DrawingCore.hitRegion(item, point)
             if (region != null) {
-                fills[region] = selectedColor.color
+                PaintActions.fillRegion(fills, region, selectedColor.color)
                 persist()
                 message = "🌈 " + selectedColor.title + "，真漂亮！"
                 audio.click()
@@ -126,6 +126,16 @@ fun DrawingScreen(
         } else {
             preview.add(point)
         }
+    }
+
+    // pointerInput is long-lived: always dispatch through the newest Compose callback.
+    // Without rememberUpdatedState a color change updates the swatch but not the
+    // touch handler, so BRUSH/BUCKET repeatedly paints with the initial red color.
+    val latestTouchStart = rememberUpdatedState<(SketchPoint) -> Unit> { point ->
+        touchStart(point)
+    }
+    val latestFinishStroke = rememberUpdatedState<() -> Unit> {
+        finishStroke()
     }
 
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
@@ -151,14 +161,14 @@ fun DrawingScreen(
                             fun point(x: Float, y: Float) = SketchPoint(
                                 (x / size.width * 100f).coerceIn(0f, 100f),
                                 (y / size.height * 100f).coerceIn(0f, 100f))
-                            touchStart(point(down.position.x, down.position.y))
+                            latestTouchStart.value(point(down.position.x, down.position.y))
                             var active = true
                             while (active) {
                                 val event = awaitPointerEvent()
                                 val change = event.changes.firstOrNull { it.id == down.id }
                                 if (change == null || !change.pressed) {
                                     active = false
-                                    if (mode != DrawingMode.BUCKET) finishStroke()
+                                    if (mode != DrawingMode.BUCKET) latestFinishStroke.value()
                                 } else {
                                     if (mode != DrawingMode.BUCKET) {
                                         preview.add(point(change.position.x, change.position.y))
@@ -225,6 +235,12 @@ fun DrawingScreen(
         }
         Row(Modifier.fillMaxWidth().padding(horizontal = 18.dp),
             verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                modifier = Modifier.size(22.dp).clip(CircleShape)
+                    .background(Color(selectedColor.color))
+                    .border(1.dp, Color(0xFF7D8290), CircleShape)
+            )
+            Spacer(Modifier.width(7.dp))
             Text("目前：" + selectedColor.title, fontSize = 14.sp, modifier = Modifier.weight(1f))
             Text("畫筆粗細", fontSize = 13.sp)
             Slider(value = brushWidth, onValueChange = { brushWidth = it }, valueRange = 2f..11f,
