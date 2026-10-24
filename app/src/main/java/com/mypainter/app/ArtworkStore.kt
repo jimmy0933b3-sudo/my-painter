@@ -18,6 +18,10 @@ class ArtworkStore(context: Context) {
             val fills = buildMap<Int, Int> {
                 fillData.keys().forEach { key -> put(key.toInt(), fillData.getInt(key)) }
             }
+            val traceData = json.optJSONObject("traceColors") ?: JSONObject()
+            val traceColors = buildMap<Int, Int> {
+                traceData.keys().forEach { key -> put(key.toInt(), traceData.getInt(key)) }
+            }
             val strokes = json.optJSONArray("marks") ?: JSONArray()
             val marks = (0 until strokes.length()).map { idx ->
                 val value = strokes.getJSONObject(idx)
@@ -28,7 +32,7 @@ class ArtworkStore(context: Context) {
                         SketchPoint(array.getDouble(0).toFloat(), array.getDouble(1).toFloat())
                     })
             }
-            SavedArtwork(json.optInt("stage", 0), fills, marks)
+            SavedArtwork(json.optInt("stage", 0), fills, marks, traceColors)
         }.getOrDefault(SavedArtwork())
     }
 
@@ -38,6 +42,9 @@ class ArtworkStore(context: Context) {
         json.put("stage", artwork.stage)
         json.put("fills", JSONObject().apply {
             artwork.fills.forEach { (key, color) -> put(key.toString(), color) }
+        })
+        json.put("traceColors", JSONObject().apply {
+            artwork.traceColors.forEach { (key, color) -> put(key.toString(), color) }
         })
         json.put("marks", JSONArray().apply {
             artwork.marks.forEach { mark ->

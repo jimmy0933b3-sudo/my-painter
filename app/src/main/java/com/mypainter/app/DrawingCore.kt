@@ -15,7 +15,9 @@ data class InkStroke(val color: Int, val width: Float, val points: List<SketchPo
 data class SavedArtwork(
     val stage: Int = 0,
     val fills: Map<Int, Int> = emptyMap(),
-    val marks: List<InkStroke> = emptyList()
+    val marks: List<InkStroke> = emptyList(),
+    // Chosen crayon for each finished traced segment. Optional for older saved art.
+    val traceColors: Map<Int, Int> = emptyMap()
 )
 
 enum class DrawingMode { TRACE, BRUSH, BUCKET }
@@ -85,8 +87,8 @@ object DrawingCore {
         val allDone = saved.stage >= paths.size
         paths.forEachIndexed { index, path ->
             outline.color = when {
+                index < saved.stage -> saved.traceColors[index] ?: android.graphics.Color.rgb(51, 160, 120)
                 mode != DrawingMode.TRACE || allDone -> android.graphics.Color.rgb(67, 68, 80)
-                index < saved.stage -> android.graphics.Color.rgb(51, 160, 120)
                 index == saved.stage -> android.graphics.Color.rgb(242, 138, 57)
                 else -> android.graphics.Color.rgb(204, 202, 214)
             }
@@ -106,7 +108,7 @@ object DrawingCore {
         }
 
         if (mode == DrawingMode.TRACE && !allDone) {
-            drawInk(canvas, android.graphics.Color.rgb(38, 153, 123), 3.2f, preview)
+            drawInk(canvas, previewColor, 3.2f, preview)
             firstPoint(item.paths[saved.stage])?.let {
                 canvas.drawCircle(it.x, it.y, 3.6f, Paint(Paint.ANTI_ALIAS_FLAG).apply {
                     color = android.graphics.Color.rgb(255, 156, 45)
@@ -122,7 +124,12 @@ object DrawingCore {
                 strokeWidth = 1.6f
                 pathEffect = null
             }
-            paths.forEach { canvas.drawPath(it, outline) }
+            paths.forEachIndexed { index, path ->
+                outline.color = if (index < saved.stage)
+                    saved.traceColors[index] ?: android.graphics.Color.rgb(80, 75, 89)
+                else android.graphics.Color.rgb(80, 75, 89)
+                canvas.drawPath(path, outline)
+            }
         }
     }
 
