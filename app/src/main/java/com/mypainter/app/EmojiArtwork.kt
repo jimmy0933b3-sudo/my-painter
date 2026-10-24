@@ -143,6 +143,11 @@ class EmojiArtwork private constructor(
                 textAlign = Paint.Align.CENTER
                 color = Color.BLACK
             }
+            // Composite icons (e.g. soy milk + beans) must fit fully before crop.
+            val measured = paint.measureText(icon)
+            if (measured > rawSize * 0.84f) {
+                paint.textSize *= rawSize * 0.84f / measured
+            }
             val metrics = paint.fontMetrics
             rawCanvas.drawText(icon, rawSize / 2f,
                 rawSize / 2f - (metrics.ascent + metrics.descent) / 2f, paint)
