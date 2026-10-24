@@ -81,7 +81,7 @@ class LineArtwork private constructor(private val ink: BooleanArray) {
         }
 
         val pixels = IntArray(ink.size) { i ->
-            if (ink[i]) Color.rgb(36, 41, 52) else Color.WHITE
+            if (ink[i]) Color.rgb(36, 41, 52) else Color.TRANSPARENT
         }
         outlineImage = Bitmap.createBitmap(pixels, side, side, Bitmap.Config.ARGB_8888)
         val trace = ArrayList<SketchPoint>()
@@ -163,7 +163,9 @@ class LineArtwork private constructor(private val ink: BooleanArray) {
         val dst = RectF(0f, 0f, 100f, 100f)
         val smooth = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
 
-        if (!showOriginal) {
+        if (showOriginal) {
+            canvas.drawColor(Color.WHITE)
+        } else {
             canvas.drawBitmap(fillImage(fills), null, dst, smooth)
 
             // A stroke belongs to the first enclosed cell it touches.
