@@ -18,12 +18,13 @@ jobs:
         run: |
           set -euo pipefail
           for attempt in $(seq 1 12); do
-            if gh api "repos/$GITHUB_REPOSITORY/releases/tags/latest" --jq '.id' >/dev/null 2>&1; then break; fi
+            if gh api "repos/$GITHUB_REPOSITORY/releases/tags/latest" --jq '.assets[] | select(.name == "my-painter-latest.apk") | .name' 2>/dev/null | grep -qx 'my-painter-latest.apk'; then break; fi
             echo "Waiting for initial main build..."
             sleep 10
           done
           gh api "repos/$GITHUB_REPOSITORY/releases/tags/latest" --jq '.assets[] | [.name, .size] | @tsv'
-          gh release download latest --pattern 'my-painter-latest.apk' --dir ./smoke-apk
+          gh api "repos/$GITHUB_REPOSITORY/releases/tags/latest" --jq '.assets[] | select(.name == "my-painter-latest.apk") | .name' | grep -qx 'my-painter-latest.apk'
+          gh release download latest -R "$GITHUB_REPOSITORY" --pattern 'my-painter-latest.apk' --dir ./smoke-apk
           test -s ./smoke-apk/my-painter-latest.apk
           unzip -t ./smoke-apk/my-painter-latest.apk | tail -n 2
           sha256sum ./smoke-apk/my-painter-latest.apk
