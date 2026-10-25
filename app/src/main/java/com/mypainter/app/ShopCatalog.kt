@@ -17,7 +17,8 @@ object ShopCatalog {
         ShopCategory("bakery", "麵包甜點", "🥐", "好吃的點心"),
         ShopCategory("dairy", "飲品乳製品", "🥛", "喝一杯好喝的"),
         ShopCategory("grocery", "超市雜貨", "🥫", "來認識食物吧"),
-        ShopCategory("toys", "購物玩具", "🧸", "逛超市真有趣")
+        ShopCategory("toys", "購物玩具", "🧸", "逛超市真有趣"),
+        ShopCategory("bathroom", "浴室用品", "🚽", "洗手和清潔用品")
     )
 
     private fun item(id: String, name: String, icon: String, group: String, vararg paths: String) =
