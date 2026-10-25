@@ -12,7 +12,7 @@ object ItemSpeech {
     private val visualClues: Map<String, String> = mapOf(
         // 水果: from the displayed black-and-white coloring illustration
         "apple" to "圓圓的蘋果上面有一片葉子",
-        "banana" to "香蕉彎彎長長的",
+        "banana" to "香蕉彎彎長長的，外面包著香蕉皮",
         "grape" to "好多顆小葡萄長在一起，旁邊還有葉子",
         "strawberry" to "草莓上有一粒一粒的小籽，頂端有葉子",
         "watermelon" to "切開的西瓜裡面有一顆顆西瓜籽",
