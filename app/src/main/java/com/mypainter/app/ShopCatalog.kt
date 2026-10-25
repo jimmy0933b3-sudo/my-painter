@@ -18,7 +18,8 @@ object ShopCatalog {
         ShopCategory("dairy", "飲品乳製品", "🥛", "喝一杯好喝的"),
         ShopCategory("grocery", "超市雜貨", "🥫", "來認識食物吧"),
         ShopCategory("toys", "購物玩具", "🧸", "逛超市真有趣"),
-        ShopCategory("bathroom", "浴室用品", "🚽", "洗手和清潔用品")
+        ShopCategory("bathroom", "浴室用品", "🚽", "洗手和清潔用品"),
+        ShopCategory("room", "房間", "🛏️", "家具、寢具與房間用品")
     )
 
     private fun item(id: String, name: String, icon: String, group: String, vararg paths: String) =
@@ -173,9 +174,9 @@ object ShopCatalog {
             "M 50 12 C 72 12 89 29 89 50 C 89 72 72 89 50 89 C 29 89 12 72 12 50 C 12 29 29 12 50 12 Z",
             "M 50 29 L 68 42 L 60 63 L 39 63 L 31 42 Z",
             "M 50 29 L 50 12 M 68 42 L 84 33 M 60 63 L 70 82 M 39 63 L 27 81 M 31 42 L 16 35")
-    ) + BathroomCatalog.items
+    ) + BathroomCatalog.items + RoomCatalog.items
 
-    val supermarketCategories = categories.filter { it.id != "bathroom" }
+    val supermarketCategories = categories.filter { it.id != "bathroom" && it.id != "room" }
 
     fun forCategory(categoryId: String): List<DrawingItem> = items.filter { it.categoryId == categoryId }
 }
