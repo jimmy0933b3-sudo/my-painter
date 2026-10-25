@@ -21,6 +21,7 @@ internal object LineArtV2 {
     private val unpacked = HashMap<String, ByteArray>()
 
     fun unpack(id: String): BooleanArray {
+        if (id in BathroomCatalog.drawingIds) return BathroomCatalog.unpack(id)
         val item = groups.entries.firstOrNull { id in it.value.first }
             ?: error("Unknown coloring item: $id")
         val bits = synchronized(unpacked) {
@@ -39,5 +40,5 @@ internal object LineArtV2 {
         return LineArtCodec.unpackPacked(bits.copyOfRange(from, from + LineArtCodec.PACKED_LENGTH))
     }
 
-    fun ids(): Set<String> = groups.values.flatMap { it.first }.toSet()
+    fun ids(): Set<String> = groups.values.flatMap { it.first }.toSet() + BathroomCatalog.drawingIds
 }
