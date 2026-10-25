@@ -66,7 +66,7 @@ private fun PainterApp(store: ArtworkStore, audio: AudioGuide) {
     fun back() {
         page = when (page) {
             "draw" -> "category"
-            "category" -> if (group == "bathroom") "home" else "supermarket"
+            "category" -> if (group == "bathroom" || group == "room") "home" else "supermarket"
             else -> "home"
         }
     }
@@ -78,6 +78,7 @@ private fun PainterApp(store: ArtworkStore, audio: AudioGuide) {
                     store, progressTick,
                     onSupermarket = { page = "supermarket"; audio.click() },
                     onBathroom = { group = "bathroom"; page = "category"; audio.click() },
+                    onRoom = { group = "room"; page = "category"; audio.click() },
                     onGallery = { page = "gallery"; audio.click() },
                     onSettings = { page = "settings"; audio.click() })
                 "supermarket" -> HomeScreen(store, progressTick,
@@ -131,7 +132,7 @@ private fun HomeScreen(
     onCategory: (String) -> Unit, onGallery: () -> Unit, onSettings: () -> Unit
 ) {
     val completed = remember(progressTick) {
-        ShopCatalog.items.count { it.categoryId != "bathroom" && store.hasWork(it.id) }
+        ShopCatalog.items.count { it.categoryId != "bathroom" && it.categoryId != "room" && store.hasWork(it.id) }
     }
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val compactLandscape = maxWidth < 760.dp
