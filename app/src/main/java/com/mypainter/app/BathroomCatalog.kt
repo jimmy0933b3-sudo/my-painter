@@ -35,6 +35,6 @@ object BathroomCatalog {
         DrawingItem("bath_shelf", "置物架", "🗄️", "bathroom", listOf("M 18 18 L 126 18", "M 18 126 L 126 126"))
     )
     val drawingIds: Set<String> = items.map { it.id }.toSet()
-    val descriptions: Map<String,String> = items.associate { it.id to ("這是" + it.name + "，可以觀察它的形狀，沿著線條填色") }
+    val descriptions: Map<String, String> = BathroomNarration.visualClues
     fun unpack(id: String): BooleanArray = BathroomArt.unpack(id)
 }
