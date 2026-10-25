@@ -7,9 +7,9 @@ import org.junit.Test
 
 /** Compare every announced name with the exact currently shipped V2 drawing ID. */
 class ItemSpeechTest {
-    @Test fun descriptionsCoverExactlyAll36VisibleDrawings() {
+    @Test fun descriptionsCoverExactlyAll102VisibleDrawings() {
         val catalogIds = ShopCatalog.items.map { it.id }.toSet()
-        assertEquals(66, catalogIds.size)
+        assertEquals(102, catalogIds.size)
         assertEquals(catalogIds, ItemSpeech.describedIds)
         assertEquals(catalogIds, LineArtV2.ids())
     }
