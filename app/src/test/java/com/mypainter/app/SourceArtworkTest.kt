@@ -8,7 +8,7 @@ import org.junit.Test
 
 class SourceArtworkTest {
     @Test fun everySupermarketItemUsesItsActualCatalogIconAsSource() {
-        val supermarket = ShopCatalog.items.filter { it.categoryId != "bathroom" }
+        val supermarket = ShopCatalog.items.filter { it.categoryId != "bathroom" && it.categoryId != "room" }
         assertEquals(36, supermarket.size)
         supermarket.forEach { item ->
             assertTrue("Missing source picture", item.icon.isNotBlank())
