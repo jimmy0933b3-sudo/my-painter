@@ -9,7 +9,7 @@ import org.junit.Test
 class ItemSpeechTest {
     @Test fun descriptionsCoverExactlyAll36VisibleDrawings() {
         val catalogIds = ShopCatalog.items.map { it.id }.toSet()
-        assertEquals(36, catalogIds.size)
+        assertEquals(66, catalogIds.size)
         assertEquals(catalogIds, ItemSpeech.describedIds)
         assertEquals(catalogIds, LineArtV2.ids())
     }
@@ -34,7 +34,7 @@ class ItemSpeechTest {
             "yogurt" to "草莓優格",
             "soy" to "葡萄汁",
             "rice" to "白飯",
-            "cereal" to "早餐穀片",
+            "cereal" to "麥片",
             "pasta" to "通心粉",
             "jam" to "草莓果醬",
             "can" to "番茄罐頭",
