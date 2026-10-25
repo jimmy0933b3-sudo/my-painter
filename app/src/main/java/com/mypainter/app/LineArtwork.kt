@@ -26,8 +26,12 @@ object LineArtCodec {
         val bytes = InflaterInputStream(
             ByteArrayInputStream(Base64.getDecoder().decode(encoded))
         ).use { it.readBytes() }
+        return unpackPacked(bytes)
+    }
+
+    fun unpackPacked(bytes: ByteArray): BooleanArray {
         require(bytes.size == PACKED_LENGTH) {
-            "Malformed line art mask: ${bytes.size} instead of $PACKED_LENGTH"
+            "Malformed coloring page: " + bytes.size + " instead of " + PACKED_LENGTH
         }
         return BooleanArray(SIDE * SIDE) { i ->
             (bytes[i / 8].toInt() and (1 shl (i % 8))) != 0
