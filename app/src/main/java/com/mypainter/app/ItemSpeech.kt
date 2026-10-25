@@ -41,7 +41,7 @@ object ItemSpeech {
         // 雜貨: identify the actual illustrated food rather than its old title
         "rice" to "碗裡裝著煮好的白飯，一粒一粒的",
         "eggs" to "有完整的雞蛋，還有一顆裂開的蛋殼",
-        "cereal" to "碗裡有好多一圈圈的早餐穀片",
+        "cereal" to "碗裡有好多一圈圈的麥片",
         "pasta" to "好多根空心的通心粉放在一起",
         "jam" to "草莓果醬裝在玻璃罐裡，標籤上畫著草莓",
         "can" to "這是一罐番茄罐頭，上面畫著番茄",
