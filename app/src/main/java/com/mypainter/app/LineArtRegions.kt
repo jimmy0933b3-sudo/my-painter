@@ -56,6 +56,31 @@ class LineArtRegions(originalInk: BooleanArray, val side: Int) {
                 sizes[id] = end
             }
         }
+        // Sealing a pinhole must not create a new unpaintable white pixel.
+        // Assign artificial barriers (not the original visible black ink)
+        // to their closest already-labeled enclosed region.
+        for (y in 1 until side - 1) for (x in 1 until side - 1) {
+            val pos = y * side + x
+            if (!originalInk[pos] && barrier[pos] && ids[pos] == 0) {
+                var winner = 0
+                var distance = Int.MAX_VALUE
+                for (dy in -2..2) for (dx in -2..2) {
+                    val xx = x + dx
+                    val yy = y + dy
+                    if (xx !in 0 until side || yy !in 0 until side) continue
+                    val candidate = ids[yy * side + xx]
+                    val d = dx * dx + dy * dy
+                    if (sizes.containsKey(candidate) && d < distance) {
+                        winner = candidate
+                        distance = d
+                    }
+                }
+                if (winner > 0) {
+                    ids[pos] = winner
+                    sizes[winner] = sizes.getValue(winner) + 1
+                }
+            }
+        }
     }
 
     fun at(x: Int, y: Int): Int? {
