@@ -8,11 +8,12 @@ import org.junit.Test
 
 class SourceArtworkTest {
     @Test fun everySupermarketItemUsesItsActualCatalogIconAsSource() {
-        assertEquals(36, ShopCatalog.items.size)
-        ShopCatalog.items.forEach { item ->
+        val supermarket = ShopCatalog.items.filter { it.categoryId != "bathroom" }
+        assertEquals(36, supermarket.size)
+        supermarket.forEach { item ->
             assertTrue("Missing source picture", item.icon.isNotBlank())
         }
-        assertEquals(36, ShopCatalog.items.map { it.icon }.distinct().size)
+        assertEquals(36, supermarket.map { it.icon }.distinct().size)
     }
 
     @Test fun regionsAreDerivedFromOriginalPixelColors() {
