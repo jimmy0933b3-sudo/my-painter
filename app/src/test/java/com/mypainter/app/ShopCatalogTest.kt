@@ -3,10 +3,11 @@ import org.junit.Assert.*
 import org.junit.Test
 class ShopCatalogTest {
     @Test fun categoriesAndDrawings() {
-        assertEquals(6, ShopCatalog.categories.size)
-        assertEquals(36, ShopCatalog.items.size)
-        assertEquals(36, ShopCatalog.items.map { it.id }.distinct().size)
-        ShopCatalog.categories.forEach { assertEquals(6, ShopCatalog.forCategory(it.id).size) }
+        assertEquals(7, ShopCatalog.categories.size)
+        assertEquals(66, ShopCatalog.items.size)
+        assertEquals(66, ShopCatalog.items.map { it.id }.distinct().size)
+        ShopCatalog.supermarketCategories.forEach { assertEquals(6, ShopCatalog.forCategory(it.id).size) }
+        assertEquals(30, ShopCatalog.forCategory("bathroom").size)
     }
     @Test fun allItemsHaveVectorOutlines() {
         ShopCatalog.items.forEach {
