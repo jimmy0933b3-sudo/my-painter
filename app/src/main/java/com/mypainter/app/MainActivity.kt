@@ -63,18 +63,33 @@ private fun PainterApp(store: ArtworkStore, audio: AudioGuide) {
     var group by remember { mutableStateOf("fruit") }
     var selected by remember { mutableStateOf(ShopCatalog.items.first()) }
     var progressTick by remember { mutableIntStateOf(0) }
-    fun back() { page = if (page == "draw") "category" else "home" }
+    fun back() {
+        page = when (page) {
+            "draw" -> "category"
+            "category" -> if (group == "bathroom") "home" else "supermarket"
+            else -> "home"
+        }
+    }
     BackHandler(page != "home") { back() }
     Surface(modifier = Modifier.fillMaxSize(), color = cream) {
         Column(Modifier.fillMaxSize().safeDrawingPadding()) {
             when (page) {
-                "home" -> HomeScreen(store, progressTick,
+                "home" -> WorldHomeScreen(
+                    store, progressTick,
+                    onSupermarket = { page = "supermarket"; audio.click() },
+                    onBathroom = { group = "bathroom"; page = "category"; audio.click() },
+                    onGallery = { page = "gallery"; audio.click() },
+                    onSettings = { page = "settings"; audio.click() })
+                "supermarket" -> HomeScreen(store, progressTick,
                     onCategory = { group = it; page = "category"; audio.click() },
                     onGallery = { page = "gallery"; audio.click() },
                     onSettings = { page = "settings"; audio.click() })
                 "category" -> CategoryScreen(group, store, progressTick, onBack = ::back,
                     onItem = {
                         selected = it
+                        // First visit counts as played, even without finishing a trace.
+                        if (!store.hasWork(it.id)) store.save(it.id, store.read(it.id))
+                        progressTick++
                         page = "draw"
                         audio.click()
                         audio.speakItem(it)
@@ -116,7 +131,7 @@ private fun HomeScreen(
     onCategory: (String) -> Unit, onGallery: () -> Unit, onSettings: () -> Unit
 ) {
     val completed = remember(progressTick) {
-        ShopCatalog.items.count { store.read(it.id).stage >= it.paths.size }
+        ShopCatalog.items.count { it.categoryId != "bathroom" && store.hasWork(it.id) }
     }
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val compactLandscape = maxWidth < 760.dp
@@ -170,7 +185,7 @@ private fun HomeScreen(
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    gridItems(ShopCatalog.categories) { category ->
+                    gridItems(ShopCatalog.supermarketCategories) { category ->
                         val count = remember(progressTick) { store.completedCount(category.id) }
                         Card(
                             onClick = { onCategory(category.id) },
@@ -241,9 +256,8 @@ private fun CategoryScreen(
                         Text(item.name, fontWeight = FontWeight.Bold, fontSize = 18.sp)
                         Spacer(Modifier.height(4.dp))
                         val status = when {
-                            work.stage >= item.paths.size -> "✅ 已完成"
-                            work.stage > 0 || work.fills.isNotEmpty() || work.marks.isNotEmpty() -> "🎨 繼續畫畫"
-                            else -> "✏️ 開始畫"
+                            store.hasWork(item.id) -> "✅ 已玩過"
+                                            else -> "✏️ 開始畫"
                         }
                         Text(status, color = Color(0xFF8F807B), fontSize = 13.sp)
                     }
@@ -263,7 +277,7 @@ private fun GalleryScreen(
         PageHeading("🖼️", "我的作品", "畫畫會自動保存，隨時都能繼續", onBack)
         if (artwork.isEmpty()) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text("🌈\n還沒有作品\n先到超市畫第一幅圖吧！",
+                Text("🌈\n還沒有作品\n先挑一個主題畫第一幅圖吧！",
                     lineHeight = 32.sp, textAlign = TextAlign.Center, fontSize = 19.sp)
             }
         } else {
