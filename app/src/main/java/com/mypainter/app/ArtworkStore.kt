@@ -81,7 +81,7 @@ class ArtworkStore(context: Context) {
     }
 
     fun completedCount(categoryId: String): Int =
-        ShopCatalog.forCategory(categoryId).count { read(it.id).stage >= it.paths.size }
+        ShopCatalog.forCategory(categoryId).count { hasWork(it.id) }
 
     fun hasWork(id: String): Boolean = File(directory, "$id.json").exists()
 }
