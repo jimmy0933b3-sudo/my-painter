@@ -67,7 +67,7 @@ fun WorldHomeScreen(
             emoji = "🚽",
             progress = "$bathroomCount / 30",
             background = Color(0xFFD9F3F9),
-            modifier = Modifier.weight(.33f).fillMaxHeight(),
+            modifier = Modifier.weight(.24f).fillMaxHeight(),
             onClick = onBathroom
         )
         WorldTile(
