@@ -77,12 +77,17 @@ private fun PainterApp(store: ArtworkStore, audio: AudioGuide) {
                         selected = it
                         page = "draw"
                         audio.click()
-                        audio.speak("這是" + it.name + "。我們一起來畫" + it.name + "吧！")
+                        audio.speakItem(it)
                     })
                 "draw" -> DrawingScreen(selected, store, audio, onBack = ::back,
                     onSaved = { progressTick++ })
                 "gallery" -> GalleryScreen(store, progressTick, onBack = ::back,
-                    onOpen = { selected = it; group = it.categoryId; page = "draw" })
+                    onOpen = {
+                        selected = it
+                        group = it.categoryId
+                        page = "draw"
+                        audio.speakItem(it)
+                    })
                 "settings" -> SettingsScreen(audio, onBack = ::back)
             }
         }

@@ -102,7 +102,7 @@ fun DrawingScreen(
                     step = item.paths.size
                     message = "🎉 輪廓完成！選喜歡的顏色為" + item.name + "上色吧！"
                     audio.success()
-                    audio.speak("太棒了！現在可以幫" + item.name + "上色囉！")
+                    audio.speak(ItemSpeech.completed(item))
                     mode = DrawingMode.BUCKET
                 } else {
                     message = "✍️ 很棒！也試試描裡面的線條。"
@@ -285,6 +285,19 @@ fun DrawingScreen(
                         "🖍️ 畫畫工具",
                         fontWeight = FontWeight.ExtraBold,
                         fontSize = 17.sp
+                    )
+                    ToolChoice(
+                        "🔊 重聽 " + item.name,
+                        false, audio.voiceEnabled,
+                        Modifier.fillMaxWidth()
+                    ) {
+                        audio.speakItem(item)
+                    }
+                    Text(
+                        ItemSpeech.description(item),
+                        fontSize = 12.sp,
+                        color = Color(0xFF687087),
+                        lineHeight = 17.sp
                     )
                     ToolChoice(
                         "👁️ 線稿參考",
