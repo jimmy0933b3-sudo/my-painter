@@ -55,7 +55,8 @@ object ItemSpeech {
     )
 
     fun description(item: DrawingItem): String =
-        visualClues.getValue(item.id)
+        if (item.categoryId == "bathroom") BathroomCatalog.descriptions.getValue(item.id)
+        else visualClues.getValue(item.id)
 
     fun intro(item: DrawingItem): String =
         "這是${item.name}。${description(item)}。一起幫${item.name}塗上漂亮的顏色吧！"
@@ -63,5 +64,5 @@ object ItemSpeech {
     fun completed(item: DrawingItem): String =
         "太棒了！${item.name}畫好了，現在可以為它塗上喜歡的顏色。"
 
-    val describedIds: Set<String> get() = visualClues.keys
+    val describedIds: Set<String> get() = visualClues.keys + BathroomCatalog.descriptions.keys
 }
