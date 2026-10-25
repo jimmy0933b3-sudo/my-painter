@@ -37,7 +37,9 @@ object LineArtCodec {
 
 class LineArtwork private constructor(private val ink: BooleanArray, private val sourceId: String) {
     private val side = LineArtCodec.SIDE
-    private val regionIds = IntArray(ink.size)
+    private val topology = LineArtRegions(ink, side)
+    private val regionIds get() = topology.ids
+    val regionCount: Int get() = topology.count
     private val outlineImage: Bitmap
     private val samples: List<SketchPoint>
     private val regionMasks = HashMap<Int, Bitmap>()
@@ -46,45 +48,6 @@ class LineArtwork private constructor(private val ink: BooleanArray, private val
     val preview: Bitmap get() = outlineImage
 
     init {
-        // The original broccoli outline has a tiny gap at its stem. Close
-        // 1-2 pixel gaps ONLY in the region detector, retaining the exact
-        // original drawn lines in the displayed artwork.
-        val barriers = if (sourceId == "broccoli") closeTinyGaps(ink, side)
-                       else ink
-        // 4-connected flood fill of the paper's white cells.
-        // Region zero is the black stroke; edge-connected white space is -1.
-        val queue = IntArray(ink.size)
-        var nextId = 1000 // avoids collisions with pre-upgrade emoji rasterFills
-        for (p in ink.indices) {
-            if (barriers[p] || regionIds[p] != 0) continue
-            nextId++
-            var head = 0
-            var tail = 1
-            var touchesEdge = false
-            queue[0] = p
-            regionIds[p] = nextId
-            while (head < tail) {
-                val index = queue[head++]
-                val x = index % side
-                val y = index / side
-                if (x == 0 || y == 0 || x == side - 1 || y == side - 1)
-                    touchesEdge = true
-                fun push(n: Int) {
-                    if (n in barriers.indices && !barriers[n] && regionIds[n] == 0) {
-                        regionIds[n] = nextId
-                        queue[tail++] = n
-                    }
-                }
-                if (x > 0) push(index - 1)
-                if (x < side - 1) push(index + 1)
-                if (y > 0) push(index - side)
-                if (y < side - 1) push(index + side)
-            }
-            if (touchesEdge) {
-                for (i in 0 until tail) regionIds[queue[i]] = -1
-            }
-        }
-
         val pixels = IntArray(ink.size) { i ->
             if (ink[i]) Color.rgb(36, 41, 52) else Color.TRANSPARENT
         }
@@ -104,20 +67,7 @@ class LineArtwork private constructor(private val ink: BooleanArray, private val
     fun regionAt(point: SketchPoint): Int? {
         val x = (point.x / 100f * side).toInt().coerceIn(0, side - 1)
         val y = (point.y / 100f * side).toInt().coerceIn(0, side - 1)
-        val hit = regionIds[y * side + x]
-        if (hit >= 1000) return hit
-        // Finger tips cover much more than a single line pixel.
-        for (radius in 1..3) {
-            for (dy in -radius..radius) for (dx in -radius..radius) {
-                if (dx * dx + dy * dy > radius * radius) continue
-                val xx = x + dx
-                val yy = y + dy
-                if (xx !in 0 until side || yy !in 0 until side) continue
-                val candidate = regionIds[yy * side + xx]
-                if (candidate >= 1000) return candidate
-            }
-        }
-        return null
+        return topology.at(x, y)
     }
 
     fun traceCoverage(traces: List<InkStroke>, tolerance: Float = 3.3f): Float {
@@ -136,7 +86,7 @@ class LineArtwork private constructor(private val ink: BooleanArray, private val
         if (lastFills == fills && fillBitmap != null) return fillBitmap!!
         val pixels = IntArray(ink.size) { i ->
             val chosen = fills[regionIds[i]]
-            if (chosen != null && regionIds[i] >= 1000) chosen or -0x1000000
+            if (chosen != null && regionIds[i] >= 2001) chosen or -0x1000000
             else Color.WHITE
         }
         val bitmap = Bitmap.createBitmap(pixels, side, side, Bitmap.Config.ARGB_8888)
@@ -177,7 +127,7 @@ class LineArtwork private constructor(private val ink: BooleanArray, private val
             // Applying this per-stroke mask prevents brush bleeding into
             // another closed cell, including donut holes and tire details.
             fun drawContained(stroke: InkStroke) {
-                val region = stroke.points.firstOrNull()?.let(::regionAt) ?: return
+                val region = stroke.points.firstNotNullOfOrNull { regionAt(it) } ?: return
                 canvas.saveLayer(dst, null)
                 drawInk(canvas, stroke.color, stroke.width, stroke.points)
                 val maskPaint = Paint(Paint.FILTER_BITMAP_FLAG).apply {
@@ -223,7 +173,7 @@ class LineArtwork private constructor(private val ink: BooleanArray, private val
         }
 
         fun create(id: String): LineArtwork =
-            LineArtwork(LineArtCodec.unpack(LineArtSources.encoded(id)), id)
+            LineArtwork(LineArtV2.unpack(id), id)
 
         private fun drawInk(canvas: Canvas, color: Int, width: Float, points: List<SketchPoint>) {
             if (points.isEmpty()) return
