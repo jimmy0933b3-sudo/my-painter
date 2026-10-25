@@ -50,4 +50,3 @@ object RoomCatalog {
     internal val drawings: Map<String, String> = entries.associate { it.id to it.drawing }
     fun unpack(id: String): BooleanArray = RoomArt.unpack(id)
 }
-}
