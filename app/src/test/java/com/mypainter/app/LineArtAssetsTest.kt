@@ -12,8 +12,8 @@ import org.junit.Test
  * contour was treated as the background, so the body had no region ID.
  */
 class LineArtAssetsTest {
-    @Test fun eachOfThe36CatalogItemsHasARedrawnPicture() {
-        assertEquals(36, ShopCatalog.items.size)
+    @Test fun everyOneOfThe66CatalogItemsHasADrawing() {
+        assertEquals(66, ShopCatalog.items.size)
         assertEquals(ShopCatalog.items.map { it.id }.toSet(), LineArtV2.ids())
     }
 
