@@ -41,7 +41,7 @@ object ItemSpeech {
         // 雜貨: identify the actual illustrated food rather than its old title
         "rice" to "碗裡裝著煮好的白飯，一粒一粒的",
         "eggs" to "有完整的雞蛋，還有一顆裂開的蛋殼",
-        "cereal" to "碗裡有好多一圈圈的早餐穀片",
+        "cereal" to "碗裡有好多一圈圈的麥片",
         "pasta" to "好多根空心的通心粉放在一起",
         "jam" to "草莓果醬裝在玻璃罐裡，標籤上畫著草莓",
         "can" to "這是一罐番茄罐頭，上面畫著番茄",
@@ -55,7 +55,8 @@ object ItemSpeech {
     )
 
     fun description(item: DrawingItem): String =
-        visualClues.getValue(item.id)
+        if (item.categoryId == "bathroom") BathroomCatalog.descriptions.getValue(item.id)
+        else visualClues.getValue(item.id)
 
     fun intro(item: DrawingItem): String =
         "這是${item.name}。${description(item)}。一起幫${item.name}塗上漂亮的顏色吧！"
@@ -63,5 +64,5 @@ object ItemSpeech {
     fun completed(item: DrawingItem): String =
         "太棒了！${item.name}畫好了，現在可以為它塗上喜歡的顏色。"
 
-    val describedIds: Set<String> get() = visualClues.keys
+    val describedIds: Set<String> get() = visualClues.keys + BathroomCatalog.descriptions.keys
 }
