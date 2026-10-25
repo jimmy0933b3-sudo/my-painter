@@ -14,34 +14,36 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
-/** Only two world icons at the top level. All six original shops stay inside 超市. */
+/** Three main worlds. The six original shops remain inside the supermarket icon. */
 @Composable
 fun WorldHomeScreen(
     store: ArtworkStore,
     progressTick: Int,
     onSupermarket: () -> Unit,
     onBathroom: () -> Unit,
+    onRoom: () -> Unit,
     onGallery: () -> Unit,
     onSettings: () -> Unit
 ) {
     val supermarketCount = ShopCatalog.items.count {
-        it.categoryId != "bathroom" && store.hasWork(it.id)
+        it.categoryId != "bathroom" && it.categoryId != "room" && store.hasWork(it.id)
     }
     val bathroomCount = ShopCatalog.forCategory("bathroom").count {
         store.hasWork(it.id)
     }
+    val roomCount = ShopCatalog.forCategory("room").count { store.hasWork(it.id) }
     Row(
         Modifier.fillMaxSize().padding(12.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         Column(
-            Modifier.weight(.35f).fillMaxHeight().verticalScroll(rememberScrollState()),
+            Modifier.weight(.30f).fillMaxHeight().verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Text("🎨 小小畫家", fontSize = 23.sp,
                 fontWeight = FontWeight.Black, color = Color(0xFF37415C))
             Text("今天想去哪裡畫畫？", fontSize = 14.sp)
-            Text("⭐ 已玩過：${supermarketCount + bathroomCount} / 66",
+            Text("⭐ 已玩過：${supermarketCount + bathroomCount + roomCount} / 102",
                 fontSize = 15.sp, fontWeight = FontWeight.Bold)
             OutlinedButton(onClick = onGallery, modifier = Modifier.fillMaxWidth()) {
                 Text("🖼️ 我的作品")
@@ -56,7 +58,7 @@ fun WorldHomeScreen(
             emoji = "🛒",
             progress = "$supermarketCount / 36",
             background = Color(0xFFFFE6BC),
-            modifier = Modifier.weight(.33f).fillMaxHeight(),
+            modifier = Modifier.weight(.24f).fillMaxHeight(),
             onClick = onSupermarket
         )
         WorldTile(
@@ -67,6 +69,15 @@ fun WorldHomeScreen(
             background = Color(0xFFD9F3F9),
             modifier = Modifier.weight(.33f).fillMaxHeight(),
             onClick = onBathroom
+        )
+        WorldTile(
+            title = "房間",
+            subtitle = "家具、寢具和裝飾",
+            emoji = "🛏️",
+            progress = "$roomCount / 36",
+            background = Color(0xFFECE2FF),
+            modifier = Modifier.weight(.24f).fillMaxHeight(),
+            onClick = onRoom
         )
     }
 }
@@ -92,14 +103,14 @@ private fun WorldTile(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            Text(emoji, fontSize = 59.sp, maxLines = 1)
+            Text(emoji, fontSize = 46.sp, maxLines = 1)
             Spacer(Modifier.height(8.dp))
-            Text(title, fontSize = 26.sp, fontWeight = FontWeight.ExtraBold,
+            Text(title, fontSize = 24.sp, fontWeight = FontWeight.ExtraBold,
                 color = Color(0xFF37415C))
             Text(subtitle, fontSize = 12.sp, textAlign = TextAlign.Center,
                 maxLines = 2, lineHeight = 16.sp)
             Spacer(Modifier.height(10.dp))
-            Text("⭐ 已玩過 $progress", fontSize = 14.sp,
+            Text("⭐ 已玩過 $progress", fontSize = 12.sp,
                 fontWeight = FontWeight.Bold)
         }
     }
